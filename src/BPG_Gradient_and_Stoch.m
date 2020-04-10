@@ -154,16 +154,16 @@ for seed_loop = 1:n_seeds
             eigen_vect = [sind(angle),cosd(angle)];                                                     % Calculate the eigen vector (EV) direction
             
             sensitivityMag = 10;    % Grad variable
-
-            p(seed_loop).coord1{i}(1) = p(seed_loop).coord1{i}(1) + sensitivityMag * cgradY(seednow(1,1),seednow(1,2));
-            p(seed_loop).coord1{i}(2) = p(seed_loop).coord1{i}(2) + sensitivityMag * cgradX(seednow(1,1),seednow(1,2));
-            
-            
+                        
             if pRand <= pStay
                p(seed_loop).coord1{i} = p(seed_loop).coord1{i-1};                           % Find next coordinate point at step d along EV direction
             else
                p(seed_loop).coord1{i} = p(seed_loop).coord1{i-1} - d*eigen_vect;                           % Find next coordinate point at step d along EV direction
             end
+            
+            p(seed_loop).coord1{i}(1) = p(seed_loop).coord1{i}(1) + sensitivityMag * cgradY(seednow(1,1),seednow(1,2));
+            p(seed_loop).coord1{i}(2) = p(seed_loop).coord1{i}(2) + sensitivityMag * cgradX(seednow(1,1),seednow(1,2));
+
 % % the path is out of bounds or hit max steps then don't proceed and change flag
 %             
 % % ------------------------------------------                
