@@ -31,6 +31,12 @@ WM_path = double(WM);
 p = struct('coord1',{},'angle1',[],'coherency1',[],'coord2',{},'angle2',[],'coherency2',[]);             % the three fields 
 
 
+% boxplot of distances
+num_intervals = 10;
+x_intervals = zeros(2*n_seeds,num_intervals);
+y_intervals = x_intervals;
+timeIntervals = 30;
+num_iterations = 300;
 
 % cancer injection
 cancer_center = [3500, 2500];
@@ -154,7 +160,7 @@ for seed_loop = 1:n_seeds
             eigen_vect = [sind(angle),cosd(angle)];                                                     % Calculate the eigen vector (EV) direction
             
             sensitivityMag = 10;    % Grad variable
-                    
+                        
             if pRand <= pStay
                p(seed_loop).coord1{i} = p(seed_loop).coord1{i-1};                           % Find next coordinate point at step d along EV direction
             else
@@ -163,22 +169,28 @@ for seed_loop = 1:n_seeds
             
             p(seed_loop).coord1{i}(1) = p(seed_loop).coord1{i}(1) + sensitivityMag * cgradY(seednow(1,1),seednow(1,2));
             p(seed_loop).coord1{i}(2) = p(seed_loop).coord1{i}(2) + sensitivityMag * cgradX(seednow(1,1),seednow(1,2));
-    
+
 % % the path is out of bounds or hit max steps then don't proceed and change flag
 %             
 % % ------------------------------------------                
             if all(p(seed_loop).coord1{i} - size(WM)<=-1)  && all(round(p(seed_loop).coord1{i})>1)  && ~path(round(p(seed_loop).coord1{i}(1)),round(p(seed_loop).coord1{i}(2)))                  
-                                
+    
                 if i < stepsMax
                 xpts = linspace(p(seed_loop).coord1{i-1}(1),p(seed_loop).coord1{i}(1),d);
                 ypts = linspace(p(seed_loop).coord1{i-1}(2),p(seed_loop).coord1{i}(2),d);
-                
+
                 else
                     flag1 = 1;
                     
                 end
+                if mod(i,timeIntervals) == 0
+                        x_intervals(seed_loop, i/timeIntervals) = p(seed_loop).coord1{i}(1);
+                        y_intervals(seed_loop, i/timeIntervals) = p(seed_loop).coord1{i}(2);
+                end   
             else
                 flag1 = 1;
+                x_intervals(seed_loop, find(x_intervals(seed_loop,:) == 0, 1):end) = p(seed_loop).coord1{i}(1);
+                y_intervals(seed_loop, find(y_intervals(seed_loop,:) == 0, 1):end) = p(seed_loop).coord1{i}(2);
             end
 % % ------------------------------------------                
         end
@@ -264,8 +276,14 @@ for seed_loop = 1:n_seeds
                 else
                     flag2 = 1;
                 end
+                if mod(i,timeIntervals) == 0
+                    x_intervals(seed_loop + n_seeds, i/timeIntervals) = p(seed_loop).coord2{i}(1);
+                    y_intervals(seed_loop + n_seeds, i/timeIntervals) = p(seed_loop).coord2{i}(2);
+                end
             else
                 flag2 = 1;
+                x_intervals(seed_loop + n_seeds, find(x_intervals(seed_loop + n_seeds,:) == 0, 1):end) = p(seed_loop).coord2{i}(1);
+                y_intervals(seed_loop + n_seeds, find(y_intervals(seed_loop + n_seeds,:) == 0, 1):end) = p(seed_loop).coord2{i}(2);
             end
 % ------------------------------------------                
         end    
@@ -282,16 +300,43 @@ end
 %save 2D_5vox_blur_100k.mat
 %edit_indices = [109,93,303,416,133,112,378];
 
+
+% calculate distances and plot
+distance = sqrt((inj_center(1) - x_intervals).^2 + (inj_center(2) - y_intervals).^2);
+mean(distance)
+figure()
+boxplot(distance)
+
+% determine whether NSC made it within a certain radius to cancer center
+radius = 1000;
+numAtCancer = 0;
+numAtCancerGraph = zeros(num_intervals, 1);
+xAxis = zeros(num_intervals, 1);
+
+for i = 1:num_intervals
+    for j = 1:2*n_seeds
+        if (sqrt((cancer_center(1) - x_intervals(j, i)).^2 + (cancer_center(2) - y_intervals(j, i)).^2) < radius)
+            numAtCancer = numAtCancer + 1;
+        end
+    end
+    numAtCancerGraph(i, 1) = numAtCancer/(2*n_seeds)*100;
+    xAxis(i, 1) = i;
+    numAtCancer = 0;
+end
+
+figure()
+plot(xAxis,numAtCancerGraph,'r')
+xlabel('Time Intervals')
+ylabel('Percent of NSC that Reach Cancer Site')
+
 % get the coordinate data from each coord1 and coord2 data and plot them.
 X_coords = zeros(1,n_seeds);
 Y_coords = X_coords;
 for i = 1:n_seeds
-  
     coord_data1 = cell2mat(p(i).coord1);
     l1 = length(coord_data1);
     X_coords(1:l1/2,i) = coord_data1(1:2:l1)';    
     Y_coords(1:l1/2,i) = coord_data1(2:2:l1)'; 
-        
     coord_data2 = cell2mat(p(i).coord2);
     l2 = length(coord_data2);
     X_coords(l1/2+1:(l1+l2)/2,i) = coord_data2(1:2:l2)';    
@@ -299,6 +344,10 @@ for i = 1:n_seeds
 end
 figure; imagesc(coh_map);   colormap gray;  hold on;
 plot(Y_coords,X_coords,'.'); axis equal
+for i = 1:num_intervals
+    figure; imagesc(coh_map);   colormap gray;  hold on;
+    plot(y_intervals(1:end,i),x_intervals(1:end,i),'.'); axis equal
+end
 % saveas(gcf,strcat('NSCMigration_pStay(',num2str(pStay),')_pCurr(',num2str(pCurr),')_deathParam(',int2str(deathParam),').fig'))
 
 
