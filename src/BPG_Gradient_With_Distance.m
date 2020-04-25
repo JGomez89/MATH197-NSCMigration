@@ -38,7 +38,9 @@ timeIntervals = 30;
 num_iterations = 300;
 
 % cancer injection
-cancer_center = [3500, 2500];
+%cancer_center = [3500, 2500];
+cancer_center = [7000, 2000];
+
 cancer_param = 2000;
 concentration = exp((-(X - cancer_center(2)).^2 - (Y - cancer_center(1)).^2)./cancer_param^2);
 

@@ -88,7 +88,7 @@ for seed_loop = 1:n_seeds
     stepsMax = poissinv(rand(1),deathParam);
 
     
-    for i = 2:20000                                                                                    % Run the loop a large number of steps
+    for i = 2:2000                                                                                    % Run the loop a large number of steps
 
         if ~flag1                                                                                       % Positive direction path
             
@@ -153,7 +153,7 @@ for seed_loop = 1:n_seeds
             p(seed_loop).coherency1(i) = coh_map(ind1);
             eigen_vect = [sind(angle),cosd(angle)];                                                     % Calculate the eigen vector (EV) direction
             
-            sensitivityMag = 10;    % Grad variable
+            sensitivityMag = 2;    % Grad variable
                     
             if pRand <= pStay
                p(seed_loop).coord1{i} = p(seed_loop).coord1{i-1};                           % Find next coordinate point at step d along EV direction
