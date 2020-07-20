@@ -12,10 +12,12 @@
 % 66, 72, and 59 percent of NSCs were found within the WM (Fig 3D).
 % median distances between NSCs and the nearest WM/GM interface were 263 ?m, 118 ?m, and 87 ?m. 
 
-
 %% load data 
 % clear all
 % directory = pwd;
+
+disp('Gathering data...')
+
 if( ~exist('coh_map','var') ) 
     WM = imread(strcat('NSC_atlas_Vikram/WM_M43.tif'));
     WM = logical(WM.*(WM>10));                                                                              % Threshold image to remove background
@@ -30,9 +32,17 @@ if( ~exist('coh_map','var') )
 end
 
 %% set parameters 
-set_parameters_Simple()                                                                                      % Coherency limit for terminating path
-n_seeds = 1000;                                                                                                % Total number of paths generated
-Finaltimestep = 5000; 
+
+set_parameters_Simple()
+for i_=1: size(dstochasticArr(:))
+    dstochastic = dstochasticArr(i_);
+    for j_=1:size(beta4distArr(:))
+        beta4dist = beta4distArr(j_);
+        disp(i_); disp(j_);
+
+% Coherency limit for terminating path
+n_seeds = 1000;                                                                                              % Total number of paths generated
+Finaltimestep = 5000;
 
 %% Initialize a matrix of same size as the white matter image and initialize a seed point (inj center) around which the seeds for each simulation are placed
 [inj_center, seed_ind] = set_initial(coh_map); 
@@ -43,18 +53,26 @@ Finaltimestep = 5000;
 p = struct('coord',{},'angle',[],'coherency',[]);             % the three fields 
 
 
-%% cancer injection
-cancer_center = [1500, 3500]; 
+%% Cancer injection
+
+cancer_center = [1500, 3500];
+% cancer_center = [3000,1500];
+% cancer_center = [2000,2000];
+% cancer_center = [4000,1000];
+% cancer_center = [5000,4000];
+
 cancer_sd = 1000; 
 [concentration, cgradX, cgradY] = set_cancer( cancer_center, cancer_sd, coh_map ); 
 
-
-
 %% 
-Tstart = tic; 
+Tstart = tic;
+disp('Running simulation...')
 
 %% for each seed 
 for seed_loop = 1:n_seeds
+    
+    dmax = betainv( rand(1), alpha, beta4dist )*5*(1+beta4dist);
+
 
     %%%% initialize first two steps 
     seed = seed_ind(round(rand*length(seed_ind)));                                                       % Choose a random point index to start the simulation
@@ -67,11 +85,11 @@ for seed_loop = 1:n_seeds
 
     %%%% second step 
     i = 2; 
-    ind1 = sub2ind(size(coh_map),round(p(seed_loop).coord(1,i-1)),round(p(seed_loop).coord(2,i-1)));                                             % Index of previous coordinate point
+    ind = sub2ind(size(coh_map),round(p(seed_loop).coord(1,i-1)),round(p(seed_loop).coord(2,i-1)));                                             % Index of previous coordinate point
             
-    angle = -ori_map(ind1);
+    angle = -ori_map(ind);
     p(seed_loop).angle(i) = angle;            
-    p(seed_loop).coherency(i) = coh_map(ind1);
+    p(seed_loop).coherency(i) = coh_map(ind);
     
     eigen_vect = [sind(angle),cosd(angle)];                                                     % Calculate the eigen vector (EV) direction
     dstep = (rand(1)*2-1)*dmax; %* double(coh_map(ind1));     
@@ -79,38 +97,35 @@ for seed_loop = 1:n_seeds
     
 %     path = zeros(size(coh_map));
 
-%stochasticity in IC of NSC 
-    dmax  = 5; 
-    dstochastic = 5; 
-    beta4dist = 2; 
-    dmax = betainv( rand(1), 1, beta4dist )*dmax; % *(1+beta4dist); 
-%     dstochastic = dstochastic*rand(1); 
+    % stochasticity in IC of NSC 
+%     dstochastic = dstochastic*rand(1);
     
-    flag1 = 0; 
+    flag = 0;
     for i = 3:Finaltimestep                                                                                    % Run the loop a large number of steps            
-        if ~flag1  %% while NSC stays in the 
+        
+        
+        if ~flag  %% while NSC stays in the 
             seedx = round(p(seed_loop).coord(1,i-1)); 
             seedy = round(p(seed_loop).coord(2,i-1)); 
             
-            ind1 = sub2ind(size(coh_map),seedx,seedy);                                             % Index of previous coordinate point
+            ind = sub2ind(size(coh_map),seedx,seedy);                                             % Index of previous coordinate point
             
-            if coh_map(ind1) %> coh_limit                                                                           % Get Eigen vector angle at the previous coordinate point
-                angle = -ori_map(ind1);
+            if coh_map(ind) %> coh_limit                                                                           % Get Eigen vector angle at the previous coordinate point
+                angle = -ori_map(ind);
                 d = dmax; 
                 
             else
                 angle_sampled = -90+2*rand*90;
-%                 angle_sampled = -45+2*rand*45;
                 angle = rem( angle_sampled + p(seed_loop).angle(i-1) ,360);                              % Real value of angle if sampled angle + original angle > 360 deg
-                % move with less magnitude if no WM present 
                 
-%                 d = dmax/dstochastic; 
-                d = dstochastic*rand(1); 
+                % move with less magnitude if no WM present 
+                d = dmax/dstochastic;
+%                 d = dmax; 
                 
             end 
             p(seed_loop).angle(i) = angle; 
             
-            p(seed_loop).coherency(i) = coh_map(ind1);
+            p(seed_loop).coherency(i) = coh_map(ind);
             eigen_vect = [sind(angle),cosd(angle)];                                                     % Calculate the eigen vector (EV) direction
             
             %%%%%% deteministic 
@@ -118,63 +133,80 @@ for seed_loop = 1:n_seeds
             %%%%%% uniform[0, 1] 
 %             dstep = rand(1)*2*d; 
             %%%%%% beta[1, bb], if bb==1, uniform 
-%             beta4dist = 5; 
 %             dstep = betainv( rand(1), 1, beta4dist )*d *(1+beta4dist) ; 
             
-           
-            %% model 1 
-            % Find next coordinate point at step d along EV direction 
-            p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) ... 
-                - sign(dot( p(seed_loop).coord(:,i-2) - p(seed_loop).coord(:,i-1), eigen_vect ) + eps ) * dstep*eigen_vect';                           % Find next coordinate point at step d along EV direction
-            % let it move away from the direction it came from. 
+
+            if modelNum == 1
+                % Find next coordinate point at step d along EV direction 
+                % let it move away from the direction it came from. 
+                modelType = 'model1';
+                p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) ... 
+                    - sign(dot( p(seed_loop).coord(:,i-2) - p(seed_loop).coord(:,i-1), eigen_vect ) + eps ) * dstep*eigen_vect';          % Find next coordinate point at step d along EV direction
             
-            %% model 2 
-            % add chemotaxis with (1-w) weight
-%             w = betainv( rand(1), beta4chmtx, 1 ) ; 
-% 
-%             eigen_vect = - sign(dot( p(seed_loop).coord(:,i-2) - p(seed_loop).coord(:,i-1), eigen_vect ) + eps ) * eigen_vect'; 
-%             chmtx_vect = [cgradY(seedx,seedy); cgradX(seedx,seedy)]; 
-%             p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) ... 
-%                 + dstep*( w*eigen_vect + (1-w)*chmtx_vect ); 
+            elseif modelNum == 2
+                % add chemotaxis with (1-w) weight
+                modelType = 'model2';
+                eigen_vect = - sign(dot( p(seed_loop).coord(:,i-2) - p(seed_loop).coord(:,i-1), eigen_vect ) + eps ) * eigen_vect'; 
+                chmtx_vect = [cgradY(seedx,seedy); cgradX(seedx,seedy)];
+                
+%                 w = betainv( rand(1), beta4chmtx, alpha ) ; 
+%                 p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) + dstep*( w*eigen_vect + (1-w)*chmtx_vect ); 
+                p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) + dstep*eigen_vect + chemo_sensitivity*chmtx_vect; 
+
             
-            %% model 3 
-            %  move along chemotaxis once it is near by cancer 
-%             if( concentration(seedx,seedy) <= chmtx_limit )
-%                 
-%             p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) ... 
-%                 - sign(dot( p(seed_loop).coord(:,i-2) - p(seed_loop).coord(:,i-1), eigen_vect ) + eps ) * dstep*eigen_vect';   
-% 
-%             else
-%             
-%             p(seed_loop).coord(1,i) = p(seed_loop).coord(1,i) + dstep * cgradY(seedx,seedy);
-%             p(seed_loop).coord(2,i) = p(seed_loop).coord(2,i) + dstep * cgradX(seedx,seedy);
-% 
-%             end 
+            elseif modelNum == 3
+                %  move along chemotaxis once it is near by cancer
+                modelType = 'model3';
+                if( concentration(seedx,seedy) <= chmtx_limit )
+                    p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) ... 
+                        - sign(dot( p(seed_loop).coord(:,i-2) - p(seed_loop).coord(:,i-1), eigen_vect ) + eps ) * dstep*eigen_vect';   
+
+                else
+                    p(seed_loop).coord(1,i) = p(seed_loop).coord(1,i) + dstep * cgradY(seedx,seedy);
+                    p(seed_loop).coord(2,i) = p(seed_loop).coord(2,i) + dstep * cgradX(seedx,seedy);
+
+                end
+            else
+                return
+            end
             
 
-% % the path is out of bounds or hit max steps then don't proceed and change flag
-%             
-% % ------------------------------------------                
+% the path is out of bounds or hit max steps then don't proceed and change flag
             if all(p(seed_loop).coord(:,i)' - size(coh_map)<=-1)  && all(round(p(seed_loop).coord(:,i)')>1) % && ~path(round(p(seed_loop).coord(1,i)),round(p(seed_loop).coord(2,i)))
-% %                 % to interpolate the path to integers 
-% %                 xpts = round( linspace(p(seed_loop).coord(1,i-1),p(seed_loop).coord(1,i),10) );
-% %                 ypts = round( linspace(p(seed_loop).coord(2,i-1),p(seed_loop).coord(2,i),10) );                
-%                 
+                % to interpolate the path to integers 
+%                 xpts = round( linspace(p(seed_loop).coord(1,i-1),p(seed_loop).coord(1,i),10) );
+%                 ypts = round( linspace(p(seed_loop).coord(2,i-1),p(seed_loop).coord(2,i),10) );                
             else
-                flag1 = 1;
+                flag = 1;
             end
-% % ------------------------------------------                
+            
         end
     end
         
 end
 
-toc( Tstart ); 
+
+
+coord = zeros(Finaltimestep,2,n_seeds);
+for i = 1:n_seeds 
+    if( size( p(i).coord, 2 ) < Finaltimestep ) % if stopped before Finaltimestep
+        ind = size( p(i).coord, 2 ); 
+        p(i).coord(1,(ind+1):Finaltimestep) = p(i).coord(1,ind); 
+        p(i).coord(2,(ind+1):Finaltimestep) = p(i).coord(2,ind);         
+    end
+    coord(:,:,i) = p(i).coord';
+end
+
+toc( Tstart );
+
 
 %% Plotting the paths
 % figure; imagesc(WM_path); axis equal;
 %save 2D_5vox_blur_100k.mat
 %edit_indices = [109,93,303,416,133,112,378];
+
+disp('Plotting graphs...')
+
 
 % get the coordinate data from each coord1 and coord2 data and plot them.
 xfinal = zeros(1,n_seeds); 
@@ -196,61 +228,87 @@ for i = 1:n_seeds
     xfinal(i) = coord_data1(1, end); 
     yfinal(i) = coord_data1(2, end); 
 end
-% %%% to plot final location 
+%%% to plot final location 
 plot(yfinal, xfinal,'ow', 'markersize', 4, 'markerfacecolor', 'w'); 
-saveas( gcf, strcat( '200626_model1_trajectoryAll_d', int2str(dmax), '_', num2str(dmax/dstochastic), '.jpg') ); 
+savethis('trajectoryAll');
 
-nprint = 1; 
-if( nprint ) 
 
-    % %%% to plot distribution each time  
-    for i = 1:n_seeds 
-        if( size( p(i).coord, 2 ) < Finaltimestep ) % if stopped before Finaltimestep
-            ind = size( p(i).coord, 2 ); 
-            p(i).coord(1,(ind+1):Finaltimestep) = p(i).coord(1,ind); 
-            p(i).coord(2,(ind+1):Finaltimestep) = p(i).coord(2,ind);         
-        end
-        coord(:,:,i) = p(i).coord';         
-    end
-    
-    Tstep = floor( Finaltimestep/4 ); 
-    figure; 
-        subplot( 1, 5, 1 ); imagesc(coh_map);   colormap gray;  hold on; title( 'time step 0' )
-        plot(squeeze( coord(1,2,:)), squeeze( coord(1,1,:)),'ow', 'markersize', 4, 'markerfacecolor', 'w');     
-    for n = 1:4 
-        subplot( 1, 5, n+1 ); imagesc(coh_map);   colormap gray;  hold on; title( int2str(Tstep*n) )  
-        plot(squeeze( coord(Tstep*n,2,:)), squeeze( coord(Tstep*n,1,:)),'ow', 'markersize', 4, 'markerfacecolor', 'w'); 
-    end 
-    saveas( gcf, strcat( '200626_model1_trajectory_d', int2str(dmax), '_', num2str(dmax/dstochastic), '.jpg') ); 
-    % plot density only when enough n_seeds 
-%     if( n_seeds > 100 ) 
-%         figure; 
-%         for n = 1:5 
-%             subplot( 1, 5, n ); 
-%             [X,Y] = meshgrid(1:(size(coh_map,2)/150):size(coh_map,2),1:(size(coh_map,1)/150):size(coh_map,1));
-%             h = ksdensity( [squeeze( coord(Tstep*n,2,:)), squeeze( coord(Tstep*n,1,:))], [X(:),Y(:)] ); 
-%             surfo( X, Y, reshape( h, size(X,1), size(X,2) ) ); 
-%             set(gca, 'YDir','reverse')
-%         end 
-%     end 
-    
+
+
+%%% to plot distribution each time  
+
+Tstep = floor( Finaltimestep/4 ); 
+figure; 
+subplot( 1, 5, 1 ); imagesc(coh_map);   colormap gray;  hold on; title( 'time step 0' )
+plot(squeeze( coord(1,2,:)), squeeze( coord(1,1,:)),'ow', 'markersize', 4, 'markerfacecolor', 'w');     
+for n = 1:4 
+    subplot( 1, 5, n+1 ); imagesc(coh_map);   colormap gray;  hold on; title( int2str(Tstep*n) )  
+    plot(squeeze( coord(Tstep*n,2,:)), squeeze( coord(Tstep*n,1,:)),'ow', 'markersize', 4, 'markerfacecolor', 'w'); 
 end 
+savethis('trajectory');
 
+
+% plot density only when enough n_seeds 
+% if( n_seeds > 100 ) 
+%     figure; 
+%     for n = 1:5 
+%         subplot( 1, 5, n ); 
+%         [X,Y] = meshgrid(1:(size(coh_map,2)/150):size(coh_map,2),1:(size(coh_map,1)/150):size(coh_map,1));
+%         h = ksdensity( [squeeze( coord(Tstep*n,2,:)), squeeze( coord(Tstep*n,1,:))], [X(:),Y(:)] ); 
+%         surfo( X, Y, reshape( h, size(X,1), size(X,2) ) ); 
+%         set(gca, 'YDir','reverse')
+%     end 
+% end 
+   
+
+
+distInit = zeros(n_seeds,Finaltimestep);
 for n = 1:length(p) 
 %%%% distance from the center of injection site 
     distInit(n,:) = sqrt( sum ( (p(n).coord - inj_center'*ones(1,size(p(n).coord,2))).^2, 1 ) );  
 %%%% distance from its Initial injection location 
 %     distInit(n,:) = sqrt( sum ( (p(n).coord - p(n).coord(:,1)*ones(1,size(p(n).coord,2))).^2, 1 ) );  
-end 
+end
+
 figure; boxplot( distInit(:, [1:1000:4001, 5000])*1.444 ); ylabel( 'Distance from injection site (\mu m)' ); 
 hold on; plot( [(8+84/(5000)):(84/(5000)):92], median( distInit )*1.444 )
 hold on; plot( [(8+84/(5000)):(84/(5000)):92], mean( distInit )*1.444 )
-set(gca,'XTick', [(8):(84/(5)):92], 'XTicklabel',{'step 0', '1000',  '2000',  '3000',  '4000',  '5000'});
-saveas( gcf, strcat( '200626_model1_distboxplot_d', int2str(dmax), '_', num2str(dmax/dstochastic), '.jpg') ); 
-
-disp( 'done' ); 
+% set(gca,'XTick', [(8):(84/(5)):92], 'XTicklabel',{'step 0', '1000',  '2000',  '3000',  '4000',  '5000'});
+savethis('distboxplot');
 
 
+
+
+% Determine whether NSC made it within a certain radius to cancer center
+if chemo_sensitivity ~= 0
+    percAtCancerGraph = zeros(Finaltimestep);
+    timeInterval = zeros(Finaltimestep);
+
+    for i = 1:Finaltimestep
+        numAtCancer = 0;
+        for j = 1:n_seeds
+            if (sqrt((cancer_center(1) - p(j).coord(1,i)).^2 + (cancer_center(2) - p(j).coord(2,i)).^2) < cancer_radius)
+                numAtCancer = numAtCancer + 1;
+            end
+        end
+        percAtCancerGraph(i) = numAtCancer/(n_seeds)*100;
+        timeInterval(i) = i;
+    end
+
+    figure()
+    plot(timeInterval,percAtCancerGraph,'r')
+    xlabel('Time Intervals')
+    ylabel('Percent of NSC that Reach Cancer Site')
+    savethis('percentArrived');
+end
+
+close all
+    end
+end
+
+disp( 'done' )
+
+%% Functions
 function [concentration, cgradX, cgradY] = set_cancer( cancer_center, cancer_sd, coh_map ) 
     [X,Y] = meshgrid(1:size(coh_map,2),1:size(coh_map,1));
 
@@ -273,14 +331,23 @@ function [concentration, cgradX, cgradY] = set_cancer( cancer_center, cancer_sd,
 end 
 
 function [inj_center, seed_ind] = set_initial(coh_map) 
+    inj_center = [2150,1000];
+    %inj_center = [5100,730];
 
-[X,Y] = meshgrid(1:size(coh_map,2),1:size(coh_map,1));
-inj_center = [2150,1000];
-%inj_center = [5100,730];
+    [X,Y] = meshgrid(1:size(coh_map,2),1:size(coh_map,1));
 
-seed_sd = 250; 
-seed_ROI = sqrt((X-inj_center(2)).^2 + (Y-inj_center(1)).^2)<seed_sd;                                       % All points within 500 pixel distance from inj_center
-seed_ind = find(seed_ROI);  
-
+    seed_sd = 250; 
+    seed_ROI = sqrt((X-inj_center(2)).^2 + (Y-inj_center(1)).^2)<seed_sd;                                       % All points within 500 pixel distance from inj_center
+    seed_ind = find(seed_ROI);  
 
 end 
+
+function savethis(title)
+    global modelType dmax dstochastic beta4dist FolderName1 FolderName2 cancer_center chemo_sensitivity;
+    if chemo_sensitivity == 0 
+    	saveas( gcf, [pwd strcat( FolderName1, '200626_',modelType,'_',title,'_d', int2str(dmax), '_', num2str(dmax/dstochastic),'_b',int2str(beta4dist),'_[NA]', '.jpg')] ); 
+    else
+        saveas( gcf, [pwd strcat( FolderName2, '200626_',modelType,'_',title,'_d', int2str(dmax), '_', num2str(dmax/dstochastic),'_b',int2str(beta4dist),'_[', int2str(cancer_center(1)),',',int2str(cancer_center(2)), ']', '.jpg')] ); 
+    end
+    
+end
