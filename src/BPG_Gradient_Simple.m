@@ -68,7 +68,7 @@ disp('Running simulation...')
 for seed_loop = 1:n_seeds
     
     %%%% initialize max step length
-    dmax = 5*(1+beta4dist) * betainv(rand(1), 1, beta4dist);
+    dmax = 5 * betainv(rand(1), 1, beta4dist); %(1+beta4dist);
 
     %%%% initialize first two steps 
     seed = seed_ind(round(rand*length(seed_ind)));                                                          % Choose a random point index to start the simulation
@@ -93,7 +93,7 @@ for seed_loop = 1:n_seeds
     
 %     path = zeros(size(coh_map));
 
-    %%%% stochasticity in IC of NSC 
+    %%%% Stochasticity in IC of NSC 
 %     dstochastic = dstochastic*rand(1);
     
     for i = 3:Finaltimestep                                                                                 % Run the loop a large number of steps            
@@ -134,16 +134,16 @@ for seed_loop = 1:n_seeds
 
             %  Move along chemotaxis once it is near by cancer
             if has_cancer && (concentration(seedx,seedy) >= chmtx_limit)
-                chmtx_bias = betainv( rand(1), alpha4chmtx, 1);
+                chmtx_bias = betainv(rand(1),alpha4chmtx,1) * chemo_sensitivity;
             else
-                chmtx_bias = 0;                
+                chmtx_bias = 0;
             end
             
             p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) + dstep*eigen_vect + chmtx_bias*chmtx_vect;
             
         end
 
-        % The path is out of bounds or hit max steps then don't proceed and change flag
+        % The path is out of bounds or hit max steps then don't proceed
         if ~(all(p(seed_loop).coord(:,i)' - size(coh_map)<=-1)  && all(round(p(seed_loop).coord(:,i)')>1))
             break
         end
@@ -237,9 +237,9 @@ for n = 1:length(p)
 %     distInit(n,:) = sqrt( sum ( (p(n).coord - p(n).coord(:,1)*ones(1,size(p(n).coord,2))).^2, 1 ) );  
 end
 
-figure; boxplot( distInit(:, [1:1000:4001, 5000])*1.444 ); ylabel( 'Distance from injection site (\mu m)' ); 
-hold on; plot( [(8+84/(5000)):(84/(5000)):92], median( distInit )*1.444 )
-hold on; plot( [(8+84/(5000)):(84/(5000)):92], mean( distInit )*1.444 )
+figure;     boxplot( distInit(:, [1:1000:4001, Finaltimestep])*1.444 ); ylabel( 'Distance from injection site (\mu m)' ); 
+hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), median( distInit )*1.444 )
+hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), mean( distInit )*1.444 )
 % set(gca,'XTick', [(8):(84/(5)):92], 'XTicklabel',{'step 0', '1000',  '2000',  '3000',  '4000',  '5000'});
 savethis('distboxplot');
 
@@ -280,7 +280,7 @@ for i = 1:acc
     for j = 1:n_seeds
         seedx2 = round(p(j).coord(1,k)); 
         seedy2 = round(p(j).coord(2,k));     
-        if (coh_map(seedx2,seedy2) > .2 && seedy2 > 3000)
+        if (coh_map(seedx2,seedy2) > coh_limit && seedy2 > 3000)
             numAtWM = numAtWM + 1;
         end
     end
@@ -289,11 +289,18 @@ for i = 1:acc
 end
 
 figure()
+% Plot regular graph
 plot(timeInterval,percAtWMGraph,'r')
-xlabel('Time Intervals')
-ylabel('Percent of NSC that Reach White Matter Passed 3000')
-savethis('percentAtWM');
+hold on
+% Plot deg2 interpolation
+p = polyfit(timeInterval,percAtWMGraph,2);
+p_ = polyval(p,timeInterval);
+plot(timeInterval,p_,'--','Color','r','LineWidth',2)
+hold off
 
+xlabel('Time Step')
+ylabel('Percent of NSC on WM passed 3000')
+savethis('percentAtWM');
 
 
 disp( 'done' )
@@ -334,13 +341,13 @@ function [inj_center, seed_ind] = set_initial(coh_map)
 end 
 
 function savethis(title)
-    global modelType dstochastic alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer ;
+    global modelType dstochastic chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer;
     
     if has_cancer
         saveas( gcf, [pwd strcat( FolderName2, '200626_',modelType,'_',title,'_d5_', num2str(5/dstochastic),...
-            '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_','[',int2str(cancer_center(1)),',',int2str(cancer_center(2)),']', '.fig')] );
+            '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),'_[',int2str(cancer_center(1)),',',int2str(cancer_center(2)),']', '.fig')] );
     else
         saveas( gcf, [pwd strcat( FolderName1, '200626_',modelType,'_',title,'_d5_', num2str(5/dstochastic),...
-            '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_','[NA]', '.fig')] );
+            '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),'_[NA]', '.fig')] );
     end
 end
