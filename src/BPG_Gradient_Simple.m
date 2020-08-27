@@ -12,7 +12,6 @@
 % 66, 72, and 59 percent of NSCs were found within the WM (Fig 3D).
 % median distances between NSCs and the nearest WM/GM interface were 263 ?m, 118 ?m, and 87 ?m. 
 
-
 %% Load data 
 
 disp('Gathering data...')
@@ -35,9 +34,9 @@ end
 set_parameters_Simple()
 
 % Coherency limit for terminating path
-n_seeds = 1000;                                                                                             % Total number of paths generated
-Finaltimestep = 5000;
-
+n_seeds =           1000;                                                                                   % Total number of paths generated
+Finaltimestep =     5000;
+CONVERT2MICROM =    1.444;
 
 %% Initialize a matrix of same size as the white matter image and initialize a seed point (inj center) around which the seeds for each simulation are placed
 [inj_center, seed_ind] = set_initial(coh_map); 
@@ -68,7 +67,7 @@ disp('Running simulation...')
 for seed_loop = 1:n_seeds
     
     %%%% initialize max step length
-    dmax = 5 * betainv(rand(1), 1, beta4dist); %(1+beta4dist);
+    dmax = betainv(rand(1), 1, beta4dist); %(1+beta4dist);
 
     %%%% initialize first two steps 
     seed = seed_ind(round(rand*length(seed_ind)));                                                          % Choose a random point index to start the simulation
@@ -91,10 +90,6 @@ for seed_loop = 1:n_seeds
     dstep = (rand(1)*2-1)*dmax; %* double(coh_map(ind1));     
     p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) + dstep*eigen_vect';                                % Find next coordinate point at step d along EV direction
     
-%     path = zeros(size(coh_map));
-
-    %%%% Stochasticity in IC of NSC 
-%     dstochastic = dstochastic*rand(1);
     
     for i = 3:Finaltimestep                                                                                 % Run the loop a large number of steps            
         
@@ -107,12 +102,12 @@ for seed_loop = 1:n_seeds
         % If NSC has preferred direction
         if coh_map(ind) > coh_limit                                                                         % Get Eigen vector angle at the previous coordinate point
             angle = -ori_map(ind);
-            dstep = dmax; 
+            dstep = dmax * d_w; 
         else
             % Choose rand angle and move with less magnitude if no WM present 
             angle_sampled = -90+2*rand*90;
             angle = rem(angle_sampled + p(seed_loop).angle(i-1) ,360);                                      % Real value of angle if sampled angle + original angle > 360 deg
-            dstep = dmax/dstochastic;
+            dstep = dmax * d_g;
         end 
         
         p(seed_loop).angle(i) = angle; 
@@ -237,9 +232,9 @@ for n = 1:length(p)
 %     distInit(n,:) = sqrt( sum ( (p(n).coord - p(n).coord(:,1)*ones(1,size(p(n).coord,2))).^2, 1 ) );  
 end
 
-figure;     boxplot( distInit(:, [1:1000:4001, Finaltimestep])*1.444 ); ylabel( 'Distance from injection site (\mu m)' ); 
-hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), median( distInit )*1.444 )
-hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), mean( distInit )*1.444 )
+figure;     boxplot( distInit(:, [1:1000:4001, Finaltimestep])*CONVERT4MICROM ); ylabel( 'Distance from injection site (\mu m)' ); 
+hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), median( distInit )*CONVERT4MICROM )
+hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), mean( distInit )*CONVERT4MICROM )
 % set(gca,'XTick', [(8):(84/(5)):92], 'XTicklabel',{'step 0', '1000',  '2000',  '3000',  '4000',  '5000'});
 savethis('distboxplot');
 
@@ -326,7 +321,7 @@ function [concentration, cgradX, cgradY] = set_cancer( cancer_center, cancer_sd,
     cgradX = cgradX./maxL;
     cgradY = cgradY./maxL;
 
-end 
+end
 
 function [inj_center, seed_ind] = set_initial(coh_map) 
     inj_center = [2150,1000];
@@ -341,13 +336,13 @@ function [inj_center, seed_ind] = set_initial(coh_map)
 end 
 
 function savethis(title)
-    global modelType dstochastic chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer;
+    global modelType chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer;
     
     if has_cancer
-        saveas( gcf, [pwd strcat( FolderName2, '200626_',modelType,'_',title,'_d5_', num2str(5/dstochastic),...
+        saveas( gcf, [pwd strcat( FolderName2, '200626_',modelType,'_',title,'_d',num2str(d_w),'_', num2str(d_g),...
             '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),'_[',int2str(cancer_center(1)),',',int2str(cancer_center(2)),']', '.fig')] );
     else
-        saveas( gcf, [pwd strcat( FolderName1, '200626_',modelType,'_',title,'_d5_', num2str(5/dstochastic),...
+        saveas( gcf, [pwd strcat( FolderName1, '200626_',modelType,'_',title,'_d',num2str(d_w),'_', num2str(d_g),...
             '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),'_[NA]', '.fig')] );
     end
 end
