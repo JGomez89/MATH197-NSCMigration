@@ -32,7 +32,8 @@ end
 %% set parameters 
 set_parameters_Simple()                                                                                      % Coherency limit for terminating path
 n_seeds = 100;                                                                                                % Total number of paths generated
-Finaltimestep = 5000; 
+Finaltimestep = 5000;
+CONVERT_TO_MICROM = 1.444;
 
 %% Initialize a matrix of same size as the white matter image and initialize a seed point (inj center) around which the seeds for each simulation are placed
 [inj_center, seed_ind] = set_initial(coh_map); 
@@ -215,15 +216,15 @@ for n = 1:length(p)
 %     distInit(n,:) = sqrt( sum ( (p(n).coord - p(n).coord(:,1)*ones(1,size(p(n).coord,2))).^2, 1 ) );  
 end 
 
-figure; boxplot( distInit(:, [1:1000:4001, 5000])*1.444 ); ylabel( 'Distance from injection site (\mu m)' ); 
-hold on; plot( [(8+84/(5000)):(84/(5000)):92], median( distInit )*1.444 )
-hold on; plot( [(8+84/(5000)):(84/(5000)):92], mean( distInit )*1.444 )
+figure; boxplot( distInit(:, [1:1000:4001, 5000])*CONVERT_TO_MICROM ); ylabel( 'Distance from injection site (\mu m)' ); 
+hold on; plot( [(8+84/(5000)):(84/(5000)):92], median( distInit )*CONVERT_TO_MICROM )
+hold on; plot( [(8+84/(5000)):(84/(5000)):92], mean( distInit )*CONVERT_TO_MICROM )
 set(gca,'XTick', [(8):(84/(5)):92], 'XTicklabel',{'step 0', '1000',  '2000',  '3000',  '4000',  '5000'});
 %saveas( gcf, strcat( '200626_model1_distboxplot_d', int2str(dmax), '_', num2str(dmax/dstochastic), '.jpg') ); 
 
 %% Compare Data
 
-meanVals = mean(distInit)*1.44;
+meanVals = mean(distInit)*CONVERT_TO_MICROM;
 compare_data = [437, 1030, 902];
 min_error = 10000000;
 
