@@ -336,7 +336,7 @@ function [inj_center, seed_ind] = set_initial(coh_map)
 end 
 
 function savethis(title)
-    global modelType chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer;
+    global modelType d_w d_g chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer;
     
     if has_cancer
         saveas( gcf, [pwd strcat( FolderName2, '200626_',modelType,'_',title,'_d',num2str(d_w),'_', num2str(d_g),...

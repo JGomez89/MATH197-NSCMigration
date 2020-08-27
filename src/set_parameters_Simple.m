@@ -1,4 +1,4 @@
-global has_cancer TIMESTEP  chemo_sensitivity alpha4chmtx beta4dist FolderName1 FolderName2;
+global has_cancer d_w d_g TIMESTEP  chemo_sensitivity alpha4chmtx beta4dist FolderName1 FolderName2;
 
 %%% Test values
 beta4distArr =      [1 2 3 4];
