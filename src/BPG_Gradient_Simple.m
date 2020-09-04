@@ -232,9 +232,9 @@ for n = 1:length(p)
 %     distInit(n,:) = sqrt( sum ( (p(n).coord - p(n).coord(:,1)*ones(1,size(p(n).coord,2))).^2, 1 ) );  
 end
 
-figure;     boxplot( distInit(:, [1:1000:4001, Finaltimestep])*CONVERT4MICROM ); ylabel( 'Distance from injection site (\mu m)' ); 
-hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), median( distInit )*CONVERT4MICROM )
-hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), mean( distInit )*CONVERT4MICROM )
+figure;     boxplot( distInit(:, [1:1000:4001, Finaltimestep])*CONVERT2MICROM ); ylabel( 'Distance from injection site (\mu m)' ); 
+hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), median( distInit )*CONVERT2MICROM )
+hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), mean( distInit )*CONVERT2MICROM )
 % set(gca,'XTick', [(8):(84/(5)):92], 'XTicklabel',{'step 0', '1000',  '2000',  '3000',  '4000',  '5000'});
 savethis('distboxplot');
 
