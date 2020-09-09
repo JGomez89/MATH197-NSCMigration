@@ -6,7 +6,7 @@
 %% Load data 
 clear all
 
-disp('Gathering data...')
+disp( 'Gathering data...' )
 [eigen_map, coh_map] = load_3D(); 
 
 
@@ -15,19 +15,19 @@ set_parameters_newfigure()
 
 % Storing the coorinate, angle of eigen vector and coherency value for both
 % positive and negative direction paths that start from a seed point
-p = struct('coord',{},'coherency',[]);  % the two fields 
+p = struct('coord',{},'coherency',[]);                                                                      %The two fields 
 
 %% Initialize a matrix of same size as the white matter image and initialize a seed point (inj center) around which the seeds for each simulation are placed
-[seed_ind,seed_sd] = set_initial(coh_map);                                                                          %Nasal injection initial 
+[seed_ind,seed_sd] = set_initial(coh_map);                                                                  %Nasal injection initial 
 
 
 %% Cancer injection
-[concentration, cgradX, cgradY, cgradZ, cancer_sd] = set_cancer(coh_map);                  %Near contralateral corpus callosum
+[concentration, cgradX, cgradY, cgradZ, cancer_sd] = set_cancer(coh_map);                                   %Near contralateral corpus callosum
 
 
 %% For each seed
 Tstart = tic; 
-disp('Running simulation...')
+disp( 'Running simulation...' )
 
 
 for seed_loop = 1:n_seeds
@@ -151,22 +151,27 @@ toc( Tstart );
 
 % gif of 2D slice || implay
 % somehow 3D?
-disp('Plotting graphs...')
+disp( 'Plotting graphs...' )
 
 
 %%% Plot path of seeds
 figure; hold on;
-ind = 0;
+indw = 0; %indg = 0;
 acc = 55;
 for i=1:    round(size(coh_map,1)/acc):    round(size(coh_map,1))
     for j=1:    round(size(coh_map,2)/acc):    round(size(coh_map,2))
         for k=1:    round(size(coh_map,3)/acc):    round(size(coh_map,3)) 
             
             if coh_map(i,j,k) > coh_limit
-                ind=ind+1;
-                X(ind,1) = j;
-                Y(ind,1) = i;
-                Z(ind,1) = k;
+                indw=indw+1;
+                Xw(indw,1) = j;
+                Yw(indw,1) = i;
+                Zw(indw,1) = k;
+%             elseif coh_map(i,j,k) > 0
+%                 indg=indg+1;
+%                 Xg(indg,1) = j;
+%                 Yg(indg,1) = i;
+%                 Zg(indg,1) = k;
             end
             
         end
@@ -190,7 +195,9 @@ if has_cancer
     set(h,'FaceColor',[1 .7 0],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
 end
 
-plot3(X,Y,Z,'om','MarkerSize',2)                                                                            %Plot coherent portion of mouse brain
+% plot3(Xg,Yg,Zg,'ob','MarkerSize',2)                                                                         %Plot points in grey matter
+plot3(Xw,Yw,Zw,'om','MarkerSize',2)                                                                         %Plot points in white matter
+
 xfinal = zeros(1,n_seeds); yfinal = zeros(1,n_seeds); zfinal = zeros(1,n_seeds);
 for i=1: n_seeds
     plot3(p(i).coord(2,:),p(i).coord(1,:),p(i).coord(3,:),'linewidth',3)                                    %Plot path of seed
@@ -198,10 +205,50 @@ for i=1: n_seeds
     yfinal(i) = p(i).coord(2, end);
     zfinal(i) = p(i).coord(3, end);
 end
+
 plot3(yfinal,xfinal,zfinal,'ok','Markersize', 7, 'markerfacecolor', 'w')                                    %Plot final coords of each seed
 xlabel('x'); ylabel('y'); zlabel('z'); grid on; axis equal; daspect([1 1 1]); camlight;
-
 savethis('trajectoryAll');
+
+
+
+
+%%% Boxplots of NSC's distance from center of injection site
+distInit = zeros(n_seeds,Finaltimestep);
+for n = 1:length(p) 
+    distInit(n,:) = sqrt( sum ( (p(n).coord - inj_center'*ones(1,size(p(n).coord,2))).^2, 1 ) );  
+end
+
+figure;     boxplot( distInit(:, [1:1000:4001, Finaltimestep]) ); ylabel( 'Distance from injection site' ); 
+hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), median( distInit ) )
+hold on;    plot( ((8+84/(Finaltimestep)):(84/(Finaltimestep)):92), mean( distInit ) )
+% set(gca,'XTick', [(8):(84/(5)):92], 'XTicklabel',{'step 0', '1000',  '2000',  '3000',  '4000',  '5000'});
+savethis('distboxplot');
+
+
+
+
+%%% Determine whether NSC made it within a certain radius to cancer center
+if has_cancer
+    percAtCancerGraph = zeros(Finaltimestep);
+    timeInterval = zeros(Finaltimestep);
+
+    for i = 1:Finaltimestep
+        numAtCancer = 0;
+        for j = 1:n_seeds
+            if sqrt((cancer_center(1) - p(j).coord(1,i)).^2 + (cancer_center(2) - p(j).coord(2,i)).^2 + (cancer_center(3) - p(j).coord(3,i)).^2) < cancer_sd
+                numAtCancer = numAtCancer + 1;
+            end
+        end
+        percAtCancerGraph(i) = (numAtCancer/n_seeds)*100;
+        timeInterval(i) = i;
+    end
+
+    figure();   plot(timeInterval,percAtCancerGraph,'r')
+    xlabel('Time Intervals');   ylabel('Percent of NSC that Reach Cancer Site');
+    savethis('percentArrived');
+end
+
 
 
 
