@@ -1,14 +1,17 @@
-global inj_center cancer_center has_cancer d_w d_g chemo_sensitivity alpha4chmtx beta4dist FolderName1 FolderName2;
+global inj_center cancer_center has_cancer d_w d_g chemo_sensitivity alpha4chmtx beta4dist FolderName1 FolderName2 modelType CONVERT2MICRON;
 
 %%% Standard values
-n_seeds =           10;                 %Total number of paths generated
-Finaltimestep =     5000;               %Num of steps for each cell
+n_seeds =           100;               %Total number of paths generated
+Finaltimestep =     10000;              %Num of steps for each cell
+CONVERT2MICRON =    13.5;               %Avg μm per pixel in our figure
 % TIMESTEP =          ???;                %Experimentally calculated tick per real time
-inj_center =        [400, 270, 180];    %In corpus callosum
-cancer_center =     [160, 280, 180];    %Near contralateral corpus callosum 
-
+% inj_center =        [400, 270, 180];    %In corpus callosum
+inj_center =        [319, 100, 66];
+% cancer_center =     [160, 280, 180];    %Near contralateral corpus callosum 
+cancer_center =        [400, 300, 175];
+        
 %%% Conditional
-has_cancer =        1;
+has_cancer =        0;
 modelNum =          2;
 
 %%% Variables
@@ -16,7 +19,7 @@ alpha4chmtx =       1;                  %alpha(beta=1)  parameter for WM vs chem
 beta4dist =         1;                  %beta(alpha=1)  parameter for distance
 chemo_sensitivity = 1;                  %chmtx_bias sensitivity
 d_w =               5;                  %reference step size on white matter
-d_g =               0.05;               %reference step size on grey matter
+d_g =               0.1;               %reference step size on grey matter
 coh_limit =         0.4;                %coherency threshold
 chmtx_limit =       0.1;                %chemotaxis threshold
 
