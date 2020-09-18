@@ -4,7 +4,8 @@
 %Using 5 voxel kernerl blur orientation and coherency map 
 
 %% Load data 
-% clear all
+% clear all;
+close all;
 
 disp('Gathering data...')
 [eigen_map, coh_map] = load_3D(); 
@@ -77,7 +78,7 @@ for seed_loop = 1:n_seeds
         %%%%%% deterministic
         dstep = d; 
 
-        chmtx_vect = [cgradZ(seedx,seedy,seedz); cgradY(seedx,seedy,seedz); cgradX(seedx,seedy,seedz)];
+        chmtx_vect = [cgradX(seedx,seedy,seedz); cgradY(seedx,seedy,seedz); cgradZ(seedx,seedy,seedz)];
         chmtx_bias = 0;
         switch modelNum
             
@@ -148,7 +149,7 @@ acc = 60;
 for i=1:    round(size(coh_map,1)/acc):    size(coh_map,1)
     for j=1:    round(size(coh_map,2)/acc):    size(coh_map,2)
         for k=1:    round(size(coh_map,3)/acc):    size(coh_map,3)
-            if (coh_map(i,j,k) > coh_limit)
+            if coh_map(i,j,k) > coh_limit
                 indw=indw+1;
                 WM_points(indw,:) = [j,i,k];
 %                 plot3(j,i,k,'o','markersize',2,'color', [(coh_map(i,j,k)-coh_limit)/(1-coh_limit) 0 1]);    %Plot WM points w/ plot3 & intensity gradient
@@ -212,6 +213,7 @@ savethis('distboxplot');
 
 
 
+
 %%% Percent of NSC on WM
 acc = 100;
 percOnWM = zeros(acc,1);
@@ -247,7 +249,7 @@ savethis('percentOnWM');
 
 %%% Determine whether NSC made it within a certain radius to cancer center
 if has_cancer
-    percAtCancerGraph = zeros(Finaltimestep);
+    percAtCancerGraph = zeros(Finaltimestep,1);
     for i = 1:Finaltimestep
         numAtCancer = 0;
         for j = 1:n_seeds
@@ -258,12 +260,12 @@ if has_cancer
                 numAtCancer = numAtCancer + 1;
             end
         end
-        percAtCancerGraph(i) = (numAtCancer/n_seeds)*100;
+        percAtCancerGraph(i,1) = (numAtCancer/n_seeds)*100;
     end
 
     figure();   plot(percAtCancerGraph,'r');
     xlabel('Time Intervals');   ylabel('Percent of NSC that Reach Cancer Site');
-    savethis('percentArrived');
+    savethis('percentAtCancer');
 end
 
 
@@ -277,9 +279,9 @@ function [concentration, cgradX, cgradY, cgradZ, cancer_sd] = set_cancer(coh_map
     global cancer_center CONVERT2MICRON
     [X,Y,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
     
-    cancer_sd_X = 200/CONVERT2MICRON;
-    cancer_sd_Y = 800/CONVERT2MICRON;
-    cancer_sd_Z = 200/CONVERT2MICRON;
+    cancer_sd_X = 100/CONVERT2MICRON;
+    cancer_sd_Y = 400/CONVERT2MICRON;
+    cancer_sd_Z = 100/CONVERT2MICRON;
     cancer_sd = [cancer_sd_X, cancer_sd_Y, cancer_sd_Z];
     
     concentration = exp( -((X - cancer_center(2)).^2)./cancer_sd_X^2 - ((Y - cancer_center(1)).^2)./cancer_sd_Y^2 - ((Z - cancer_center(3)).^2)./ cancer_sd_Z^2 );
@@ -358,12 +360,18 @@ end
 
 function savethis(title)
     global modelType d_w d_g chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer;
+    
+    type = '.png';
+    if strcmp(title,'trajectoryAll')
+        type = '.fig';
+    end
+    
     if has_cancer
-        saveas( gcf, [pwd strcat( FolderName2, '3D_191125_',modelType,'_',title,'_d',num2str(d_w),'_', num2str(d_g),...
+        saveas( gcf, [pwd strcat( FolderName2, '3D_191125_',modelType,'_',title,'_d',num2str(d_w),'_',num2str(d_g),...
             '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),...
-            '_[',int2str(cancer_center(1)),',',int2str(cancer_center(2)),',',int2str(cancer_center(3)),']', '.fig')] );
+            '_[',int2str(cancer_center(1)),',',int2str(cancer_center(2)),',',int2str(cancer_center(3)),']',type)] );
     else
-        saveas( gcf, [pwd strcat( FolderName1, '3D_191125_',modelType,'_',title,'_d',num2str(d_w),'_', num2str(d_g),...
-            '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),'_[NA]', '.fig')] );
+        saveas( gcf, [pwd strcat( FolderName1, '3D_191125_',modelType,'_',title,'_d',num2str(d_w),'_',num2str(d_g),...
+            '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),'_[NA]',type)] );
     end
 end
