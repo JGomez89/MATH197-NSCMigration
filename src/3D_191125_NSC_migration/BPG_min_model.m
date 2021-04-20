@@ -16,7 +16,7 @@ set_parameters_newfigure()
 
 % Storing the coorinate, angle of eigen vector and coherency value for both
 % positive and negative direction paths that start from a seed point
-p = struct('coord',{},'coherency',[]);                                                                      % The two fields 
+p = struct('coord',{});                                                                                     % The two fields 
 
 %% Initialize a matrix of same size as the white matter image and initialize a seed point (inj center) around which the seeds for each simulation are placed
 [seed_ind,seed_sd,ubound,lbound] = set_initial(coh_map);                                                    % Nasal injection initial 
@@ -56,11 +56,10 @@ for seed_loop = 1:n_seeds
     %%%% Algorithm: while NSC stays in bounds
     for i = 3:Finaltimestep                                                                                 % Run the loop a large number of steps            
         
-        seedx = round(p(seed_loop).coord(1,i-1)); 
-        seedy = round(p(seed_loop).coord(2,i-1)); 
-        seedz = round(p(seed_loop).coord(3,i-1)); 
-        
-        ind = sub2ind(size(coh_map),seedx,seedy,seedz);                                                     % Index of previous coordinate point
+        seedx = round( p(seed_loop).coord(1,i-1) );                                                         % Initialize (seedx,seedy,seedz) as (x,y,z) coords of prev step
+        seedy = round( p(seed_loop).coord(2,i-1) );
+        seedz = round( p(seed_loop).coord(3,i-1) );
+        ind = sub2ind(size(coh_map),seedx,seedy,seedz);
 
         if coh_map(ind) > coh_limit                                                                         % Get Eigen vector at the previous coordinate point
             eigen_vect = squeeze( eigen_map( seedx, seedy, seedz, : ) ); 
@@ -103,17 +102,15 @@ for seed_loop = 1:n_seeds
                 
         end
         
+        % take step
         p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) + dstep*eigen_vect + chmtx_bias*chmtx_vect;
 
-        % the path is out of bounds or hit max steps then don't proceed
+        % if path is out of bounds then stop
         seednow = round(p(seed_loop).coord(:,i));
-        if ( all(seednow' - size(coh_map)<=-1) && all( seednow'>1 ) )                                               %Seed doesn't reache edge of coh_map
-            if ( seednow(3) > ubound(seednow(1),seednow(2)) || seednow(3) < lbound(seednow(1),seednow(2)) ) || ...  %Seed is outside of the lower and upper bounds (z)
-                    ( isnan(ubound(seednow(1),seednow(2))) || isnan(lbound(seednow(1),seednow(2))) )                %Seed is outside of the side bounds of brain (x,y)
+        if ~( all(seednow' - size(coh_map)<=-1) && all( seednow'>1 ) ) || ...                                               %Seed reaches edge of coh_map
+            ( seednow(3) > ubound(seednow(1),seednow(2)) || seednow(3) < lbound(seednow(1),seednow(2)) ) || ...             %Seed is outside of the lower and upper bounds (z)
+            ( isnan(ubound(seednow(1),seednow(2))) || isnan(lbound(seednow(1),seednow(2))) )                                %Seed is outside of the side bounds of brain (x,y)
                 break
-            end
-        else
-            break
         end
 
 
@@ -121,74 +118,55 @@ for seed_loop = 1:n_seeds
 end
 
 %Fill in rest of coordinates with last valid coordinate
-% coord = zeros(Finaltimestep,3,n_seeds);
 for i = 1:n_seeds 
     if( size( p(i).coord, 2 ) < Finaltimestep )                                                             % If stopped before Finaltimestep
         ind = size( p(i).coord, 2 ) - 1; 
         p(i).coord(1,(ind+1):Finaltimestep) = p(i).coord(1,ind);
-        p(i).coord(2,(ind+1):Finaltimestep) = p(i).coord(2,ind);        
-        p(i).coord(3,(ind+1):Finaltimestep) = p(i).coord(3,ind);        
+        p(i).coord(2,(ind+1):Finaltimestep) = p(i).coord(2,ind);
+        p(i).coord(3,(ind+1):Finaltimestep) = p(i).coord(3,ind);
     end
-%     coord(:,:,i) = p(i).coord';
 end
 
 toc( Tstart ); 
 
 
 %% Plot Graphs 
-
-% gif of 2D slice, implay, plot3, pointCloud
-% somehow 3D?
-% XYZ or YXZ: FIXME
 disp('Plotting graphs...')
 
-
-%%% Plot path of seeds
+%% Plot path of seeds
 figure; hold on;
-indw = 0;
-acc = 60;
-for i=1:    round(size(coh_map,1)/acc):    size(coh_map,1)
-    for j=1:    round(size(coh_map,2)/acc):    size(coh_map,2)
-        for k=1:    round(size(coh_map,3)/acc):    size(coh_map,3)
-            if coh_map(i,j,k) > coh_limit
-                indw=indw+1;
-                WM_points(indw,:) = [i,j,k];
-%                 plot3(j,i,k,'o','markersize',2,'color', [(coh_map(i,j,k)-coh_limit)/(1-coh_limit) 0 1]);    %Plot WM points w/ plot3 & intensity gradient
-            end
-        end
-    end
-end
-% WM_ptCloud = pointCloud(WM_points);
-% pcshow( WM_ptCloud,'markersize',2 ); colormap spring;                                                       %Plot WM points w/ point-cloud
-plot3(WM_points(:,2),WM_points(:,1),WM_points(:,3),'mo','markersize',2);                                    %Plot WM points w/ plot3
-
-[x,y,z] = sphere;
-x = x*seed_sd + inj_center(1);
-y = y*seed_sd + inj_center(2);
-z = z*seed_sd + inj_center(3);
-h = surf(y, x, z);                                                                                          %Plot injection site
-set(h,'FaceColor',[1 0 1],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
-
-if has_cancer
-    [x,y,z] = sphere;
-    x = x*cancer_size(1) + cancer_center(1);
-    y = y*cancer_size(2) + cancer_center(2);
-    z = z*cancer_size(3) + cancer_center(3);
-    h = surf(y, x, z);                                                                                      %If there's cancer, plot cancer site
-    set(h,'FaceColor',[1 .7 0],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
-end
 
 finalCoords = zeros(3,n_seeds);
 for i=1: n_seeds
     finalCoords(:,i) = p(i).coord(:, end);
 end
-for i=1:10: n_seeds
-    plot3(p(i).coord(2,:),p(i).coord(1,:),p(i).coord(3,:),'linewidth',3)                                    %Plot path of seed
+for i=1: n_seeds
+    plot3(p(i).coord(1,:),p(i).coord(2,:),p(i).coord(3,:),'linewidth',3)                                    %Plot path of seed
 end
 
-plot3(finalCoords(2,:),finalCoords(1,:),finalCoords(3,:),'ok','Markersize', 7,'markerfacecolor','w');       %Plot final coords of each seed
-surf( ubound, 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                    %Plot upper bound of mouse brain
-surf( lbound, 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                    %Plot lower bound of mouse brain
+plot3(finalCoords(1,:),finalCoords(2,:),finalCoords(3,:),'ok','Markersize', 7,'markerfacecolor','w');       %Plot final coords of each seed
+surf( ubound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot upper bound of mouse brain
+surf( lbound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot lower bound of mouse brain
+
+[x,y,z] = sphere;
+x = x*seed_sd + inj_center(1);
+y = y*seed_sd + inj_center(2);
+z = z*seed_sd + inj_center(3);
+h = surf(x, y, z);                                                                                          %Plot injection site
+set(h,'FaceColor',[1 0 1],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
+    
+if has_cancer
+    [x,y,z] = sphere;
+    x = x*cancer_size(1) + cancer_center(1);
+    y = y*cancer_size(2) + cancer_center(2);
+    z = z*cancer_size(3) + cancer_center(3);
+    h = surf(x, y, z);                                                                                      %Plot cancer site
+    set(h,'FaceColor',[1 .7 0],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
+end
+
+ii = find( coh_map > .7 ); 
+[Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
+hold on; plot3( X(ii),Y(ii),Z(ii),'bo');
 
 xlabel('x'); ylabel('y'); zlabel('z'); grid on; axis equal; daspect([1 1 1]); camlight;
 savethis('trajectoryAll');
@@ -196,14 +174,11 @@ savethis('trajectoryAll');
 
 
 
-%%% Boxplots of NSC's distance from center of injection site
+%% Boxplots of NSC's distance from center of injection site
 clear distInit;
 distInit = zeros(n_seeds,Finaltimestep);
 for n = 1:n_seeds
-%%%% distance from the center of injection site 
-    distInit(n,:) = sqrt( sum ( (p(n).coord - inj_center'*ones(1,size(p(n).coord,2))).^2, 1 ) );  
-%%%% distance from its Initial injection location 
-%     distInit(n,:) = sqrt( sum ( (p(n).coord - p(n).coord(:,1)*ones(1,size(p(n).coord,2))).^2, 1 ) );  
+    distInit(n,:) = sqrt( sum ( (p(n).coord - inj_center'*ones(1,size(p(n).coord,2))).^2, 1 ) );   
 end
 
 acc = 6;
@@ -217,32 +192,27 @@ savethis('distboxplot');
 
 
 
-%%% Percent of NSC on WM
-acc = 100;
-percOnWM = zeros(acc,1);
-for i = 1:acc
-    k= i*round(Finaltimestep/acc);
+%% Percent of NSC on WM
+percOnWM = zeros(Finaltimestep,1);
+for i = 1:Finaltimestep
     numAtWM = 0;
     for j = 1:n_seeds
-        seedx = round(p(j).coord(1,k)); 
-        seedy = round(p(j).coord(2,k)); 
-        seedz = round(p(j).coord(3,k)); 
-        
-        ind = sub2ind(size(coh_map),seedx,seedy,seedz);
+        seedx = round(p(j).coord(1,i)); 
+        seedy = round(p(j).coord(2,i)); 
+        seedz = round(p(j).coord(3,i)); 
 
-        if coh_map(ind) > coh_limit      
+        if coh_map(seedx,seedy,seedz) > coh_limit      
             numAtWM = numAtWM + 1;
         end 
     end
-    percOnWM(i,1) = (numAtWM/n_seeds)*100;
+    percOnWM(i,1) = numAtWM;
 end
+percOnWM = 100*percOnWM/n_seeds;
 
 % Plot regular graph
-xvals = (1:acc)*round(Finaltimestep/acc);
-figure();   plot(xvals,percOnWM,'r');
-% Plot deg2 interpolation
-p_ = polyfit(xvals,percOnWM,2);  p_ = polyval(p_,xvals);
-hold on;    plot(xvals,p_,'--','Color','r','LineWidth',2);
+figure();   plot(percOnWM,'r');
+% Plot smooth graph
+hold on;   plot(smoothdata(percOnWM),'--','Color','black','LineWidth',2);
 
 xlabel('Time Intervals');   ylabel('Percent of NSC on WM');
 savethis('percentOnWM');
@@ -250,21 +220,19 @@ savethis('percentOnWM');
 
 
 
-%%% Determine whether NSC made it within a certain radius to cancer center
+%% Determine whether NSC made it within a certain radius to cancer center
 if has_cancer
     percAtCancerGraph = zeros(Finaltimestep,1);
     for i = 1:Finaltimestep
         numAtCancer = 0;
         for j = 1:n_seeds
-            if sqrt( (cancer_center(1) - p(j).coord(1,i)).^2 ) < cancer_size(1)        && ...
-                    sqrt( (cancer_center(2) - p(j).coord(2,i)).^2 ) < cancer_size(2)   && ...
-                    sqrt( (cancer_center(3) - p(j).coord(3,i)).^2 ) < cancer_size(3)
-                
+            if all( abs(cancer_center - p(j).coord(:,i)') < cancer_size )
                 numAtCancer = numAtCancer + 1;
             end
         end
-        percAtCancerGraph(i,1) = (numAtCancer/n_seeds)*100;
+        percAtCancerGraph(i,1) = numAtCancer;
     end
+    percAtCancerGraph = 100*percAtCancerGraph/n_seeds;
 
     figure();   plot(percAtCancerGraph,'r');
     xlabel('Time Intervals');   ylabel('Percent of NSC that Reach Cancer Site');
@@ -274,25 +242,25 @@ end
 
 
 
-disp( 'done' ); 
-
-
+%% Entire procedure finished
+disp( 'done' );
 %% Functions
 function [concentration, cgradX, cgradY, cgradZ, cancer_sd] = set_cancer(coh_map) 
     global cancer_center cancer_size
-    [X,Y,Z] = meshgrid(1:size(coh_map,1),1:size(coh_map,2),1:size(coh_map,3));
+    [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
     
-    cancer_sd_X = cancer_size(1)*100;
-    cancer_sd_Y = cancer_size(2)*100;
-    cancer_sd_Z = cancer_size(3)*100;
-    cancer_sd = [cancer_sd_X, cancer_sd_Y, cancer_sd_Z];
+    cancer_sd = cancer_size;
+    cancer_sd_X = cancer_sd(1); cancer_sd_Y = cancer_sd(2); cancer_sd_Z = cancer_sd(3);
     
-    % New distribution needed
-    concentration = exp( -((X - cancer_center(1)).^2)./cancer_sd_X^2 - ((Y - cancer_center(2)).^2)./cancer_sd_Y^2 - ((Z - cancer_center(3)).^2)./ cancer_sd_Z^2 );
+    concen_sd = 25; 
+    concen_sd = concen_sd*cancer_sd/cancer_sd(1); 
+    concen_param = 2; 
+    concentration = 1./(1+(sqrt(((X - cancer_center(1))/concen_sd(1)).^2+((Y - cancer_center(2))/concen_sd(2)).^2+((Z - cancer_center(3))/concen_sd(3)).^2)).^concen_param);    
+ 
+    valcap = 1./(1+(sqrt(((cancer_sd_X)/concen_sd(1)).^2+((0)/concen_sd(2)).^2+((0)/concen_sd(3)).^2)).^concen_param);      %valcap = concentration at border of cancer
     
-    % Cap concentration with some threshhold when in the cancer location
-    valcap = exp( -((cancer_size(1)).^2)./cancer_sd_X^2 - ((cancer_size(2)).^2)./cancer_sd_Y^2 - ((cancer_size(3)).^2)./ cancer_sd_Z^2 );
     concentration(concentration > valcap) = valcap;
+    concentration( coh_map==0 ) = 0; 
     
     cgradX = zeros(size(X));
     cgradX(2:end-1,:,:) = concentration(3:end,:,:) - concentration(1:end-2,:,:);
@@ -315,7 +283,7 @@ end
 
 function [seed_ind,seed_sd,indup,inddown] = set_initial(coh_map) 
     global inj_center
-    [X,Y,Z] = meshgrid(1:size(coh_map,1),1:size(coh_map,2),1:size(coh_map,3));
+    [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
     
     seed_sd = 10; 
     seed_ROI = sqrt((X-inj_center(1)).^2 + (Y-inj_center(2)).^2 + (Z-inj_center(3)).^2)<seed_sd;   
