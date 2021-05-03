@@ -107,9 +107,9 @@ for seed_loop = 1:n_seeds
 
         % if path is out of bounds then stop
         seednow = round(p(seed_loop).coord(:,i));
-        if ~( all(seednow' - size(coh_map)<=-1) && all( seednow'>1 ) ) || ...                                               %Seed reaches edge of coh_map
-            ( seednow(3) > ubound(seednow(1),seednow(2)) || seednow(3) < lbound(seednow(1),seednow(2)) ) || ...             %Seed is outside of the lower and upper bounds (z)
-            ( isnan(ubound(seednow(1),seednow(2))) || isnan(lbound(seednow(1),seednow(2))) )                                %Seed is outside of the side bounds of brain (x,y)
+        if ~( all(seednow' - size(coh_map)<=-1) && all( seednow'>1 ) ) || ...                                           %Seed reaches edge of coh_map
+            ( seednow(3) > ubound(seednow(1),seednow(2)) || seednow(3) < lbound(seednow(1),seednow(2)) ) || ...         %Seed is outside of the lower and upper bounds (z)
+            ( isnan(ubound(seednow(1),seednow(2))) || isnan(lbound(seednow(1),seednow(2))) )                            %Seed is outside of the side bounds of brain (x,y)
                 break
         end
 
@@ -133,18 +133,33 @@ toc( Tstart );
 %% Plot Graphs 
 disp('Plotting graphs...')
 
+if exist('p_original','var') && exist('acc','var')
+    for n=1:n_seeds
+        if p(n).coord(:,2) ~= p_original(n).coord(:,1+acc)
+            p_original = p; break
+        end
+    end
+    p = p_original;
+end
+
+acc = 100;                                                                                                   %Use a smaller timestep (record every acc number steps)
+p_original = p;
+p_new = struct('coord',{});
+for i=1:n_seeds
+    p_new(i).coord = p(i).coord(:,1:acc:Finaltimestep); 
+end
+p = p_new; clear p_new;
+xvals = (1:acc:Finaltimestep);
+
+
 %% Plot path of seeds
 figure; hold on;
 
-finalCoords = zeros(3,n_seeds);
-for i=1: n_seeds
-    finalCoords(:,i) = p(i).coord(:, end);
-end
 for i=1: n_seeds
     plot3(p(i).coord(1,:),p(i).coord(2,:),p(i).coord(3,:),'linewidth',3)                                    %Plot path of seed
+    plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords of each seed
 end
 
-plot3(finalCoords(1,:),finalCoords(2,:),finalCoords(3,:),'ok','Markersize', 7,'markerfacecolor','w');       %Plot final coords of each seed
 surf( ubound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot upper bound of mouse brain
 surf( lbound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot lower bound of mouse brain
 
@@ -166,7 +181,7 @@ end
 
 ii = find( coh_map > .7 ); 
 [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
-hold on; plot3( X(ii),Y(ii),Z(ii),'bo');
+hold on; plot3( X(ii(1:50:end)),Y(ii(1:50:end)),Z(ii(1:50:end)),'b.');
 
 xlabel('x'); ylabel('y'); zlabel('z'); grid on; axis equal; daspect([1 1 1]); camlight;
 savethis('trajectoryAll');
@@ -176,43 +191,44 @@ savethis('trajectoryAll');
 
 %% Boxplots of NSC's distance from center of injection site
 clear distInit;
-distInit = zeros(n_seeds,Finaltimestep);
+distInit = zeros(n_seeds,Finaltimestep/acc);
 for n = 1:n_seeds
-    distInit(n,:) = sqrt( sum ( (p(n).coord - inj_center'*ones(1,size(p(n).coord,2))).^2, 1 ) );   
+    distInit(n,:) = sqrt( sum ( (p(n).coord - inj_center'*ones(1,size(p(n).coord,2))).^2, 1 ) );
 end
 
-acc = 6;
-figure;     boxplot( distInit(:, (1:acc)*floor(Finaltimestep/acc))*CONVERT2MICRON );
-hold on;    plot( (1:Finaltimestep)*(acc/Finaltimestep), median( distInit )*CONVERT2MICRON );
-hold on;    plot( (1:Finaltimestep)*(acc/Finaltimestep), mean( distInit )*CONVERT2MICRON );
+num_plots = 10;
+data = distInit(:, (1:num_plots)*floor(Finaltimestep/(num_plots*acc)))*CONVERT2MICRON;
+labels = {num_plots};
+for i=1:num_plots
+    labels{i} = num2str( floor(Finaltimestep/num_plots)*i );
+end
+figure;     boxplot( data, labels );
+hold on;    plot( (1:acc:Finaltimestep)*(num_plots/Finaltimestep), median( distInit )*CONVERT2MICRON );
+% hold on;    plot( (1:acc:Finaltimestep)*(num_plots/Finaltimestep), mean( distInit )*CONVERT2MICRON );
 
-ylabel( 'Distance from injection site (\mu)' );
+ylim([0 max(max(data))+500]);
+xlim([0 num_plots+1]);
+xlabel( 'Time Intervals' ); ylabel( 'Distance from injection site (\mu)' );
 savethis('distboxplot');
 
 
 
 
 %% Percent of NSC on WM
-percOnWM = zeros(Finaltimestep,1);
-for i = 1:Finaltimestep
-    numAtWM = 0;
-    for j = 1:n_seeds
-        seedx = round(p(j).coord(1,i)); 
-        seedy = round(p(j).coord(2,i)); 
-        seedz = round(p(j).coord(3,i)); 
-
-        if coh_map(seedx,seedy,seedz) > coh_limit      
-            numAtWM = numAtWM + 1;
-        end 
-    end
-    percOnWM(i,1) = numAtWM;
+numAtWM = zeros(Finaltimestep/acc,1);
+for i = 1:n_seeds
+    seedx = round(p(i).coord(1,:)); 
+    seedy = round(p(i).coord(2,:)); 
+    seedz = round(p(i).coord(3,:)); 
+    ind = sub2ind(size(coh_map),seedx, seedy, seedz); 
+    numAtWM = numAtWM + double( coh_map(ind) > coh_limit )'; 
 end
-percOnWM = 100*percOnWM/n_seeds;
+percOnWM = numAtWM / n_seeds * 100;
 
 % Plot regular graph
-figure();   plot(percOnWM,'r');
+figure();   plot(xvals,percOnWM,'r');
 % Plot smooth graph
-hold on;   plot(smoothdata(percOnWM),'--','Color','black','LineWidth',2);
+% hold on;   plot(xvals,smoothdata(percOnWM),'--','Color','black','LineWidth',2);
 
 xlabel('Time Intervals');   ylabel('Percent of NSC on WM');
 savethis('percentOnWM');
@@ -222,8 +238,8 @@ savethis('percentOnWM');
 
 %% Determine whether NSC made it within a certain radius to cancer center
 if has_cancer
-    percAtCancerGraph = zeros(Finaltimestep,1);
-    for i = 1:Finaltimestep
+    percAtCancerGraph = zeros(Finaltimestep/acc,1);
+    for i = 1:Finaltimestep/acc
         numAtCancer = 0;
         for j = 1:n_seeds
             if all( abs(cancer_center - p(j).coord(:,i)') < cancer_size )
@@ -234,7 +250,7 @@ if has_cancer
     end
     percAtCancerGraph = 100*percAtCancerGraph/n_seeds;
 
-    figure();   plot(percAtCancerGraph,'r');
+    figure();   plot(xvals,percAtCancerGraph,'r');
     xlabel('Time Intervals');   ylabel('Percent of NSC that Reach Cancer Site');
     savethis('percentAtCancer');
 end
@@ -244,6 +260,7 @@ end
 
 %% Entire procedure finished
 disp( 'done' );
+
 %% Functions
 function [concentration, cgradX, cgradY, cgradZ, cancer_sd] = set_cancer(coh_map) 
     global cancer_center cancer_size

@@ -1,7 +1,7 @@
 global inj_center cancer_center has_cancer d_w d_g chemo_sensitivity alpha4chmtx beta4dist FolderName1 FolderName2 CONVERT2MICRON cancer_size;
 
 %%% Standard values
-n_seeds =           1000;                %Total number of paths generated
+n_seeds =           1000;               %Total number of paths generated
 Finaltimestep =     10000;              %Num of steps for each cell
 % TIMESTEP =          ???;                %Experimentally calculated tick per real time
 CONVERT2MICRON =    13.5;               %Avg μm per pixel in our figure
@@ -16,9 +16,8 @@ inj_center =        [319 100 66];       %Intranasal
 cancer_center =     [300 400 175];
 % cancer_center =     [160, 280, 180];    %Near contralateral corpus callosum 
 
-
 %%% Conditional
-has_cancer =        1;
+has_cancer =        0;
 modelNum =          2;
 
 %%% Variables
