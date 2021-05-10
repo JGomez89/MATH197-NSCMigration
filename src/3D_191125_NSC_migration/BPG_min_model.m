@@ -3,7 +3,9 @@
 %%_________________
 %Using 5 voxel kernerl blur orientation and coherency map 
 
-%% Load data 
+%% Load data
+global eigen_map coh_map seed_sd ubound lbound cancer_sd
+
 % clear all;
 close all;
 
@@ -14,9 +16,9 @@ disp('Gathering data...')
 %% Set parameters 
 set_parameters_newfigure()
 
-% Storing the coorinate, angle of eigen vector and coherency value for both
-% positive and negative direction paths that start from a seed point
+% Storing coorinate in struct p
 p = struct('coord',{});                                                                                     % The two fields 
+
 
 %% Initialize a matrix of same size as the white matter image and initialize a seed point (inj center) around which the seeds for each simulation are placed
 [seed_ind,seed_sd,ubound,lbound] = set_initial(coh_map);                                                    % Nasal injection initial 
@@ -108,7 +110,7 @@ for seed_loop = 1:n_seeds
         % if path is out of bounds then stop
         seednow = round(p(seed_loop).coord(:,i));
         if ~( all(seednow' - size(coh_map)<=-1) && all( seednow'>1 ) ) || ...                                           %Seed reaches edge of coh_map
-            ( seednow(3) > ubound(seednow(1),seednow(2)) || seednow(3) < lbound(seednow(1),seednow(2)) ) || ...         %Seed is outside of the lower and upper bounds (z)
+            ( seednow(3) > ubound(seednow(1),seednow(2)) || seednow(3) < lbound(seednow(1),seednow(2)) ) || ...         %Seed is outside of the lower or upper bounds (z)
             ( isnan(ubound(seednow(1),seednow(2))) || isnan(lbound(seednow(1),seednow(2))) )                            %Seed is outside of the side bounds of brain (x,y)
                 break
         end
@@ -130,7 +132,7 @@ end
 toc( Tstart ); 
 
 
-%% Plot Graphs 
+%% Plot Graphs, Use smaller p
 disp('Plotting graphs...')
 
 if exist('p_original','var') && exist('acc','var')
@@ -152,11 +154,13 @@ p = p_new; clear p_new;
 xvals = (1:acc:Finaltimestep);
 
 
+
+
 %% Plot path of seeds
 figure; hold on;
 
 for i=1: n_seeds
-    plot3(p(i).coord(1,:),p(i).coord(2,:),p(i).coord(3,:),'linewidth',3)                                    %Plot path of seed
+    plot3(p(i).coord(1,:),p(i).coord(2,:),p(i).coord(3,:),'linewidth',3);                                       %Plot path of seed
     plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords of each seed
 end
 
@@ -181,10 +185,10 @@ end
 
 ii = find( coh_map > .7 ); 
 [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
-hold on; plot3( X(ii(1:50:end)),Y(ii(1:50:end)),Z(ii(1:50:end)),'b.');
+hold on; plot3( X(ii(1:50:end)),Y(ii(1:50:end)),Z(ii(1:50:end)),'b.');                                      %Plot WM track
 
 xlabel('x'); ylabel('y'); zlabel('z'); grid on; axis equal; daspect([1 1 1]); camlight;
-savethis('trajectoryAll');
+savethis('trajectoryAll','fig');
 
 
 
@@ -209,7 +213,7 @@ hold on;    plot( (1:acc:Finaltimestep)*(num_plots/Finaltimestep), median( distI
 ylim([0 max(max(data))+500]);
 xlim([0 num_plots+1]);
 xlabel( 'Time Intervals' ); ylabel( 'Distance from injection site (\mu)' );
-savethis('distboxplot');
+savethis('distboxplot','png');
 
 
 
@@ -231,7 +235,7 @@ figure();   plot(xvals,percOnWM,'r');
 % hold on;   plot(xvals,smoothdata(percOnWM),'--','Color','black','LineWidth',2);
 
 xlabel('Time Intervals');   ylabel('Percent of NSC on WM');
-savethis('percentOnWM');
+savethis('percentOnWM','png');
 
 
 
@@ -252,8 +256,27 @@ if has_cancer
 
     figure();   plot(xvals,percAtCancerGraph,'r');
     xlabel('Time Intervals');   ylabel('Percent of NSC that Reach Cancer Site');
-    savethis('percentAtCancer');
+    savethis('percentAtCancer','png');
 end
+
+
+
+
+%% Percent of WM in brain
+% figure();
+% percWM = @(x) 100 * sum(coh_map > x,'all')/sum(coh_map > 0,'all');
+% for i=1:50
+%     percWMArr(i)=percWM(i/50);
+% end
+% plot((1:50)/50,percWM((1:50)/50));
+
+
+
+
+%% Plot path of seeds on and off WM
+a=1;
+plotonoffWM( p(1:a:end) );
+savethis('trajectoryOnOffWM','fig');
 
 
 
@@ -348,20 +371,92 @@ function [EV, FA] = load_3D()
     FA = interp3(FA(limits(1):limits(2),limits(3):limits(4),limits(5):limits(6)),scale);
 end 
 
-function savethis(title)
-    global modelType d_w d_g chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer;
-    
-    type = '.png';
-    if strcmp(title,'trajectoryAll')
-        type = '.fig';
-    end
-    
+function savethis(title,type)
+    global modelType d_w d_g chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer;    
     if has_cancer
         saveas( gcf, [pwd strcat( FolderName2, '3D_191125_',modelType,'_',title,'_d',num2str(d_w),'_',num2str(d_g),...
             '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),...
-            '_[',int2str(cancer_center(1)),',',int2str(cancer_center(2)),',',int2str(cancer_center(3)),']',type)] );
+            '_[',int2str(cancer_center(1)),',',int2str(cancer_center(2)),',',int2str(cancer_center(3)),'].',type)] );
     else
         saveas( gcf, [pwd strcat( FolderName1, '3D_191125_',modelType,'_',title,'_d',num2str(d_w),'_',num2str(d_g),...
-            '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),'_[NA]',type)] );
+            '_a',int2str(alpha4chmtx),'_b',int2str(beta4dist),'_c',num2str(chemo_sensitivity),'_[NA].',type)] );
     end
+end
+
+function plotonoffWM(p)
+    global coh_limit coh_map eigen_map ubound lbound seed_sd inj_center cancer_size cancer_center has_cancer;
+    [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
+    figure; hold on;
+    
+    for i=1: size(p,2)
+        plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords of each seed
+    end
+    
+    hold on; surf( ubound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot upper bound of mouse brain
+    hold on; surf( lbound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot lower bound of mouse brain
+
+    [x,y,z] = sphere;
+    x = x*seed_sd + inj_center(1);
+    y = y*seed_sd + inj_center(2);
+    z = z*seed_sd + inj_center(3);
+    h = surf(x, y, z);                                                                                          %Plot injection site
+    set(h,'FaceColor',[1 0 1],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
+
+    if has_cancer
+        [x,y,z] = sphere;
+        x = x*cancer_size(1) + cancer_center(1);
+        y = y*cancer_size(2) + cancer_center(2);
+        z = z*cancer_size(3) + cancer_center(3);
+        h = surf(x, y, z);                                                                                      %Plot cancer site
+        set(h,'FaceColor',[1 .7 0],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
+    end
+
+    ii = find( coh_map > coh_limit ); 
+    hold on; plot3( X(ii(1:150:end)),Y(ii(1:150:end)),Z(ii(1:150:end)),'b.');                                      %Plot WM track
+    
+    isOnWM = @(x) logical( coh_map(x) > coh_limit );
+    for i=1: size(p,2)
+        p_temp = p(i).coord;
+        ind = sub2ind( size(coh_map),round(p_temp(1,:)),round(p_temp(2,:)),round(p_temp(3,:)) );
+
+        p_on = p_temp .* isOnWM(ind);
+        p_on(p_on == 0) = NaN;
+        p_off = p_temp .* ~isOnWM(ind);
+        p_off(p_off == 0) = NaN;
+
+        onNaN=0;
+        for j=1: size(p_temp,2)-1
+            if all( isnan(p_off(:,j+1)) )
+                if ~onNaN
+                    p_on(:,j)=p_off(:,j);
+                    onNaN=1;
+                end
+            else
+                onNaN=0;
+            end
+        end
+        onNaN=0;
+        for j=1: size(p_temp,2)-1
+            if all( isnan(p_on(:,j+1)) )
+                if ~onNaN
+                    p_off(:,j)=p_on(:,j);
+                    onNaN=1;
+                end
+            else
+                onNaN=0;
+            end
+        end
+        
+        hold on; plot3(p_on(1,:),p_on(2,:),p_on(3,:),'Color',[0.6350 0.0780 0.1840],'linewidth',3);         %Plot path of seed on WM
+        hold on; plot3(p_off(1,:),p_off(2,:),p_off(3,:),'Color',[0 0.4470 0.7410],'linewidth',3);           %Plot path of seed off WM
+        
+        ind_on = sub2ind( size(coh_map),round(p_on(1,:)),round(p_on(2,:)),round(p_on(3,:)) );
+        ind_on = ind_on(~isnan(ind_on));
+        hold on; quiver3( X(ind_on),Y(ind_on),Z(ind_on),eigen_map(ind_on),eigen_map(ind_on),eigen_map(ind_on),'Color',[0.6350 0.0780 0.1840],'AutoScaleFactor',2 );     %Plot eigen vects on WM
+        ind_off = sub2ind( size(coh_map),round(p_off(1,:)),round(p_off(2,:)),round(p_off(3,:)) );
+        ind_off = ind_off(~isnan(ind_off));
+        hold on; quiver3( X(ind_off),Y(ind_off),Z(ind_off),eigen_map(ind_off),eigen_map(ind_off),eigen_map(ind_off),'Color',[0 0.4470 0.7410],'AutoScaleFactor',2 );  %Plot eigen vects off WM
+    end
+    
+    xlabel('x'); ylabel('y'); zlabel('z'); grid on; axis equal; daspect([1 1 1]); camlight;
 end

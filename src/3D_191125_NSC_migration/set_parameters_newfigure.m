@@ -1,4 +1,5 @@
-global inj_center cancer_center has_cancer d_w d_g chemo_sensitivity alpha4chmtx beta4dist FolderName1 FolderName2 CONVERT2MICRON cancer_size;
+global n_seeds Finaltimestep CONVERT2MICRON coh_limit chmtx_limit d_w cancer_size inj_center cancer_center ...
+    has_cancer modelNum alpha4chmtx beta4dist chemo_sensitivity d_g FolderName1 FolderName2
 
 %%% Standard values
 n_seeds =           1000;               %Total number of paths generated
@@ -17,14 +18,14 @@ cancer_center =     [300 400 175];
 % cancer_center =     [160, 280, 180];    %Near contralateral corpus callosum 
 
 %%% Conditional
-has_cancer =        0;
+has_cancer =        1;
 modelNum =          2;
 
 %%% Variables
 alpha4chmtx =       1;                  %alpha(beta=1)  parameter for WM vs chemo
 beta4dist =         1;                  %beta(alpha=1)  parameter for distance
 chemo_sensitivity = 4;                  %chmtx_bias sensitivity
-d_g =               0.1;                %reference step size on grey matter
+d_g =               2.5;                %reference step size on grey matter
 
 %%% Test Values
 alpha4chmtxArr =    [1 2 3 4];
