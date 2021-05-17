@@ -68,7 +68,7 @@ for seed_loop = 1:n_seeds
             d = dmax * d_w; 
         else  
             eigen_vect_noise = (rand(3,1)*2-1); 
-            eigen_vect = squeeze( eigen_map( seedx, seedy, seedz, : ) ) + eigen_vect_noise/norm(eigen_vect_noise)*norm(eigen_vect); 
+            eigen_vect = eigen_vect_noise/norm(eigen_vect_noise); 
             d = dmax * d_g;                                                                                 % Move with less magnitude if no WM present 
         end 
 
@@ -105,14 +105,17 @@ for seed_loop = 1:n_seeds
         end
         
         % take step
-        p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) + dstep*eigen_vect + chmtx_bias*chmtx_vect;
+        p(seed_loop).coord(:,i) = p(seed_loop).coord(:,i-1) ...
+            - sign(dot( p(seed_loop).coord(:,i-2) - p(seed_loop).coord(:,i-1), eigen_vect ) + eps ) * dstep*eigen_vect + chmtx_bias*chmtx_vect;       
 
-        % if path is out of bounds then stop
+        % if path is out of bounds then put back to previous step
         seednow = round(p(seed_loop).coord(:,i));
         if ~( all(seednow' - size(coh_map)<=-1) && all( seednow'>1 ) ) || ...                                           %Seed reaches edge of coh_map
             ( seednow(3) > ubound(seednow(1),seednow(2)) || seednow(3) < lbound(seednow(1),seednow(2)) ) || ...         %Seed is outside of the lower or upper bounds (z)
             ( isnan(ubound(seednow(1),seednow(2))) || isnan(lbound(seednow(1),seednow(2))) )                            %Seed is outside of the side bounds of brain (x,y)
+            
                 break
+%             p(seed_loop).coord(:,i) =  p(seed_loop).coord(:,i-1) ;                      
         end
 
 
@@ -132,6 +135,8 @@ end
 toc( Tstart ); 
 
 
+
+
 %% Plot Graphs, Use smaller p
 disp('Plotting graphs...')
 
@@ -144,7 +149,7 @@ if exist('p_original','var') && exist('acc','var')
     p = p_original;
 end
 
-acc = 100;                                                                                                   %Use a smaller timestep (record every acc number steps)
+acc = 1;                                                                                                  %Use a smaller timestep (record every acc number steps)
 p_original = p;
 p_new = struct('coord',{});
 for i=1:n_seeds
@@ -157,37 +162,14 @@ xvals = (1:acc:Finaltimestep);
 
 
 %% Plot path of seeds
-figure; hold on;
+figure;
+plotenvironment(true);
 
 for i=1: n_seeds
     plot3(p(i).coord(1,:),p(i).coord(2,:),p(i).coord(3,:),'linewidth',3);                                       %Plot path of seed
     plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords of each seed
 end
 
-surf( ubound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot upper bound of mouse brain
-surf( lbound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot lower bound of mouse brain
-
-[x,y,z] = sphere;
-x = x*seed_sd + inj_center(1);
-y = y*seed_sd + inj_center(2);
-z = z*seed_sd + inj_center(3);
-h = surf(x, y, z);                                                                                          %Plot injection site
-set(h,'FaceColor',[1 0 1],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
-    
-if has_cancer
-    [x,y,z] = sphere;
-    x = x*cancer_size(1) + cancer_center(1);
-    y = y*cancer_size(2) + cancer_center(2);
-    z = z*cancer_size(3) + cancer_center(3);
-    h = surf(x, y, z);                                                                                      %Plot cancer site
-    set(h,'FaceColor',[1 .7 0],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
-end
-
-ii = find( coh_map > .7 ); 
-[Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
-hold on; plot3( X(ii(1:50:end)),Y(ii(1:50:end)),Z(ii(1:50:end)),'b.');                                      %Plot WM track
-
-xlabel('x'); ylabel('y'); zlabel('z'); grid on; axis equal; daspect([1 1 1]); camlight;
 savethis('trajectoryAll','fig');
 
 
@@ -274,9 +256,86 @@ end
 
 
 %% Plot path of seeds on and off WM
+figure; 
+plotenvironment(false);
 a=1;
 plotonoffWM( p(1:a:end) );
 savethis('trajectoryOnOffWM','fig');
+
+
+
+
+%% Min/Max Path
+figure;
+plotenvironment(false);
+
+stepDistance = zeros(n_seeds, Finaltimestep/acc - 1);
+for i = 1:n_seeds
+    for j = 2:Finaltimestep/acc
+        % record distance traveled each step
+        stepDistance(i, j - 1) = sqrt((p(i).coord(1,j) - p(i).coord(1,j-1)).^2 + (p(i).coord(2,j) - p(i).coord(2,j-1)).^2 + (p(i).coord(3,j) - p(i).coord(3,j-1)).^2);
+    end
+end
+
+cellind = [ ];
+for j = 1:n_seeds
+    if (all( abs(cancer_center - p(j).coord(:,end)') < cancer_size ))
+        cellind = [cellind, j];
+    end
+end 
+
+% compute cell trajectory lengths 
+stepDistanceTotal = sum( stepDistance, 2 ); 
+
+% find minimum path among all cells
+minPath = min( stepDistanceTotal(:) ); 
+minPath_seed = find( stepDistanceTotal == minPath );
+
+% find maximum path among all cells
+maxPath = max( stepDistanceTotal(:) ); 
+maxPath_seed = find( stepDistanceTotal == maxPath );
+
+if has_cancer
+    dist2cancer = zeros(n_seeds, 1); 
+
+    % Min Calculations
+    % find minimum path among those that are close to cancer 
+    minPath_cancer = min( stepDistanceTotal(cellind) ); 
+    minPath_cancer_seed = find( stepDistanceTotal == minPath_cancer ); 
+
+    % find cells that are close enough to minimum path to cancer 
+    mincloseindex = find( abs( stepDistanceTotal-minPath ) < 100 ); 
+
+    % percentage of cells that are near minimum path to cancer
+    minclosepercent = length(mincloseindex) / length(stepDistanceTotal);
+    
+    % Max Calculations
+    % find maximum path among cells that are close to cancer 
+    maxPath_cancer = max( stepDistanceTotal(cellind) ); 
+    maxPath_cancer_seed = find( stepDistanceTotal == maxPath_cancer ); 
+
+    % find cells that are close enough to maximum path 
+    maxcloseindex = find( abs( stepDistanceTotal-maxPath ) < 100 ); 
+
+    % percentage of cells that are near maximum path 
+    maxclosepercent = length(maxcloseindex) / length(stepDistanceTotal);
+        
+    %Plot cancer Min/Max Paths:
+    plot3(p(minPath_cancer_seed).coord(1,:),p(minPath_cancer_seed).coord(2,:),p(minPath_cancer_seed).coord(3,:),'Color','m','linewidth',3);
+    plot3(p(minPath_cancer_seed).coord(1, end),p(minPath_cancer_seed).coord(2, end),p(minPath_cancer_seed).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w');
+
+    plot3(p(maxPath_cancer_seed).coord(1,:),p(maxPath_cancer_seed).coord(2,:),p(maxPath_cancer_seed).coord(3,:),'y','linewidth',3);
+    plot3(p(maxPath_cancer_seed).coord(1, end),p(maxPath_cancer_seed).coord(2, end),p(maxPath_cancer_seed).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w');
+end
+
+%Plot overall Min/Max Paths:
+plot3(p(minPath_seed).coord(1,:),p(minPath_seed).coord(2,:),p(minPath_seed).coord(3,:),'Color','m','linewidth',3);
+plot3(p(minPath_seed).coord(1, end),p(minPath_seed).coord(2, end),p(minPath_seed).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w');
+
+plot3(p(maxPath_seed).coord(1,:),p(maxPath_seed).coord(2,:),p(maxPath_seed).coord(3,:),'Color','y','linewidth',3);
+plot3(p(maxPath_seed).coord(1, end),p(maxPath_seed).coord(2, end),p(maxPath_seed).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w');
+
+savethis('minmaxpath','fig');
 
 
 
@@ -383,23 +442,18 @@ function savethis(title,type)
     end
 end
 
-function plotonoffWM(p)
-    global coh_limit coh_map eigen_map ubound lbound seed_sd inj_center cancer_size cancer_center has_cancer;
+function plotenvironment(plotWM)
+    global coh_limit coh_map ubound lbound seed_sd inj_center cancer_size cancer_center has_cancer;
     [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
-    figure; hold on;
     
-    for i=1: size(p,2)
-        plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords of each seed
-    end
-    
-    hold on; surf( ubound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot upper bound of mouse brain
-    hold on; surf( lbound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );                   %Plot lower bound of mouse brain
+    hold on; surf( ubound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );      %Plot upper bound of mouse brain
+    hold on; surf( lbound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );      %Plot lower bound of mouse brain
 
     [x,y,z] = sphere;
     x = x*seed_sd + inj_center(1);
     y = y*seed_sd + inj_center(2);
     z = z*seed_sd + inj_center(3);
-    h = surf(x, y, z);                                                                                          %Plot injection site
+    h = surf(x, y, z);                                                                                      %Plot injection site
     set(h,'FaceColor',[1 0 1],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
 
     if has_cancer
@@ -407,12 +461,24 @@ function plotonoffWM(p)
         x = x*cancer_size(1) + cancer_center(1);
         y = y*cancer_size(2) + cancer_center(2);
         z = z*cancer_size(3) + cancer_center(3);
-        h = surf(x, y, z);                                                                                      %Plot cancer site
+        h = surf(x, y, z);                                                                                  %Plot cancer site
         set(h,'FaceColor',[1 .7 0],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
     end
+    if plotWM
+        ii = find( coh_map > coh_limit ); 
+        hold on; plot3( X(ii(1:200:end)),Y(ii(1:200:end)),Z(ii(1:200:end)),'b.');                            %Plot WM track
+    end
+    
+    xlabel('x'); ylabel('y'); zlabel('z'); grid on; axis equal; daspect([1 1 1]); camlight;
+end
 
-    ii = find( coh_map > coh_limit ); 
-    hold on; plot3( X(ii(1:150:end)),Y(ii(1:150:end)),Z(ii(1:150:end)),'b.');                                      %Plot WM track
+function plotonoffWM(p)
+    global coh_limit coh_map eigen_map;
+    [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
+    
+    for i=1: size(p,2)
+        plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords of each seed
+    end
     
     isOnWM = @(x) logical( coh_map(x) > coh_limit );
     for i=1: size(p,2)
@@ -449,14 +515,16 @@ function plotonoffWM(p)
         
         hold on; plot3(p_on(1,:),p_on(2,:),p_on(3,:),'Color',[0.6350 0.0780 0.1840],'linewidth',3);         %Plot path of seed on WM
         hold on; plot3(p_off(1,:),p_off(2,:),p_off(3,:),'Color',[0 0.4470 0.7410],'linewidth',3);           %Plot path of seed off WM
+
+        emap_reshaped = reshape( eigen_map, numel(coh_map), 3 ); 
         
         ind_on = sub2ind( size(coh_map),round(p_on(1,:)),round(p_on(2,:)),round(p_on(3,:)) );
         ind_on = ind_on(~isnan(ind_on));
-        hold on; quiver3( X(ind_on),Y(ind_on),Z(ind_on),eigen_map(ind_on),eigen_map(ind_on),eigen_map(ind_on),'Color',[0.6350 0.0780 0.1840],'AutoScaleFactor',2 );     %Plot eigen vects on WM
+        hold on; quiver3( X(ind_on),Y(ind_on),Z(ind_on),emap_reshaped(ind_on,1)',emap_reshaped(ind_on,2)',emap_reshaped(ind_on,3)','Color',[0.6350 0.0780 0.1840]);     %Plot eigen vects on WM
         ind_off = sub2ind( size(coh_map),round(p_off(1,:)),round(p_off(2,:)),round(p_off(3,:)) );
         ind_off = ind_off(~isnan(ind_off));
-        hold on; quiver3( X(ind_off),Y(ind_off),Z(ind_off),eigen_map(ind_off),eigen_map(ind_off),eigen_map(ind_off),'Color',[0 0.4470 0.7410],'AutoScaleFactor',2 );  %Plot eigen vects off WM
+        hold on; quiver3( X(ind_off),Y(ind_off),Z(ind_off),emap_reshaped(ind_off,1)',emap_reshaped(ind_off,2)',emap_reshaped(ind_off,3)','Color',[0 0.4470 0.7410]);    %Plot eigen vects off WM
+            
+        plot3( p_temp(1,:), p_temp(2,:), p_temp(3,:), 'k.' );                                               %Plot trajectory dots 
     end
-    
-    xlabel('x'); ylabel('y'); zlabel('z'); grid on; axis equal; daspect([1 1 1]); camlight;
 end
