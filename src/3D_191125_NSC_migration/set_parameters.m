@@ -18,10 +18,10 @@ modelType =         'Intranasal';
 
 
 %%% Cancer Location
-cancer_center =     [230, 300, 175];    % right, front putamen 
+% cancer_center =     [230, 300, 175];    % right, front putamen 
 % cancer_center =     [120, 400, 150];    % right, back putamen 
-% cancer_center =     [230, 300, 175;     % right, front putamen 
-%                      400, 360, 155];    % left, middle putamen 
+cancer_center =     [230, 300, 175;     % right, front putamen 
+                     400, 360, 155];    % left, middle putamen 
 
 
 %%% Conditional

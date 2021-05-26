@@ -4,7 +4,7 @@
 %Using 5 voxel kernerl blur orientation and coherency map 
 
 %% Load data
-global eigen_map coh_map seed_sd ubound lbound cancer_sd inj_center cancer_number curr_site_num
+global eigen_map coh_map seed_sd ubound lbound cancer_sd inj_center num_cancers curr_site_num
 
 % clear all;
 close all;
@@ -174,12 +174,12 @@ figure;
 plotenvironment(.7);
 
 for i=1: n_seeds
-    plot3(p(i).coord(1,:),p(i).coord(2,:),p(i).coord(3,:),'linewidth',3);                                       %Plot path of seed
-    plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords of each seed
+    plot3(p(i).coord(1,:),p(i).coord(2,:),p(i).coord(3,:),'linewidth',3);                                       %Plot path
+    plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords
 end
 
-savethis('trajectoryAll','jpg');
 savethis('trajectoryAll','fig');
+savethis('trajectoryAll','jpg');
 
 
 
@@ -189,7 +189,7 @@ figure;
 plotenvironment(.7);
 
 for i=1: n_seeds
-    plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords of each seed
+    plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords
 end
 
 savethis('finalPosition','jpg');
@@ -244,12 +244,12 @@ savethis('percentOnWM','jpg');
 
 %% Determine whether NSC made it within a certain radius to cancer center
 if has_cancer
-    for curr_site_num=1: cancer_number
+    for k=1: num_cancers
         percAtCancerGraph = zeros(Finaltimestep/acc,1);
         for i = 1:Finaltimestep/acc
             numAtCancer = 0;
             for j = 1:n_seeds
-                if all( abs(cancer_center(curr_site_num,:) - p(j).coord(:,i)') < cancer_size )
+                if all( abs(cancer_center(k,:) - p(j).coord(:,i)') < cancer_size )
                     numAtCancer = numAtCancer + 1;
                 end
             end
@@ -258,14 +258,17 @@ if has_cancer
         percAtCancerGraph = 100*percAtCancerGraph/n_seeds;
 
         indAtCancer = []; 
-        for j = 1:n_seeds
-            if all( abs(cancer_center - p(j).coord(:,end)') < cancer_size )
-                indAtCancer = [indAtCancer,j]; 
+        for i = 1:n_seeds
+            if all( abs(cancer_center - p(i).coord(:,end)') < cancer_size )
+                indAtCancer = [indAtCancer,i]; 
             end
         end
-
+        
         figure; plot(xvals,percAtCancerGraph,'r');
         xlabel('Time Intervals');   ylabel('Percent of NSC that Reach Cancer Site');
+        
+        %Must specify curr_site_num for correct naming before calling savethis
+        curr_site_num=k;
         savethis('percentAtCancer','jpg');
     end
 end
@@ -295,9 +298,6 @@ end
 
 
 %% Min/Max Path
-figure;
-plotenvironment(1);
-
 stepDistance = zeros(n_seeds, Finaltimestep/acc - 1);
 for i = 1:n_seeds
     for j = 2:Finaltimestep/acc
@@ -305,13 +305,6 @@ for i = 1:n_seeds
         stepDistance(i, j - 1) = sqrt((p(i).coord(1,j) - p(i).coord(1,j-1)).^2 + (p(i).coord(2,j) - p(i).coord(2,j-1)).^2 + (p(i).coord(3,j) - p(i).coord(3,j-1)).^2);
     end
 end
-
-cellind = [ ];
-for j = 1:n_seeds
-    if (all( abs(cancer_center - p(j).coord(:,end)') < cancer_size ))
-        cellind = [cellind, j];
-    end
-end 
 
 % compute cell trajectory lengths 
 stepDistanceTotal = sum( stepDistance, 2 ); 
@@ -325,37 +318,58 @@ maxPath = max( stepDistanceTotal(:) );
 maxPath_seed = find( stepDistanceTotal == maxPath );
 
 if has_cancer
-    dist2cancer = zeros(n_seeds, 1); 
-
-    % Min Calculations
-    % find minimum path among those that are close to cancer 
-    minPath_cancer = min( stepDistanceTotal(cellind) ); 
-    minPath_cancer_seed = find( stepDistanceTotal == minPath_cancer ); 
-
-    % find cells that are close enough to minimum path to cancer 
-    mincloseindex = find( abs( stepDistanceTotal-minPath ) < 100 ); 
-
-    % percentage of cells that are near minimum path to cancer
-    minclosepercent = length(mincloseindex) / length(stepDistanceTotal);
-    
-    % Max Calculations
-    % find maximum path among cells that are close to cancer 
-    maxPath_cancer = max( stepDistanceTotal(cellind) ); 
-    maxPath_cancer_seed = find( stepDistanceTotal == maxPath_cancer ); 
-
-    % find cells that are close enough to maximum path 
-    maxcloseindex = find( abs( stepDistanceTotal-maxPath ) < 100 ); 
-
-    % percentage of cells that are near maximum path 
-    maxclosepercent = length(maxcloseindex) / length(stepDistanceTotal);
+    for i=1: num_cancers
+        cellind = [ ];
+        for j = 1:n_seeds
+            if (all( abs(cancer_center(i,:) - p(j).coord(:,end)') < cancer_size ))
+                cellind = [cellind, j];
+            end
+        end 
         
-    %Plot cancer Min/Max Paths:
-    plot3(p(minPath_cancer_seed).coord(1,:),p(minPath_cancer_seed).coord(2,:),p(minPath_cancer_seed).coord(3,:),'Color','m','linewidth',3);
-    plot3(p(minPath_cancer_seed).coord(1, end),p(minPath_cancer_seed).coord(2, end),p(minPath_cancer_seed).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w');
+        if ~isempty(cellind)
+            dist2cancer = zeros(n_seeds, 1); 
 
-    plot3(p(maxPath_cancer_seed).coord(1,:),p(maxPath_cancer_seed).coord(2,:),p(maxPath_cancer_seed).coord(3,:),'y','linewidth',3);
-    plot3(p(maxPath_cancer_seed).coord(1, end),p(maxPath_cancer_seed).coord(2, end),p(maxPath_cancer_seed).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w');
+            % Min Calculations
+            % find minimum path among those that are close to cancer 
+            minPath_cancer = min( stepDistanceTotal(cellind) ); 
+            minPath_cancer_seed = find( stepDistanceTotal == minPath_cancer ); 
+
+            % find cells that are close enough to minimum path to cancer 
+            mincloseindex = find( abs( stepDistanceTotal-minPath ) < 100 ); 
+
+            % percentage of cells that are near minimum path to cancer
+            minclosepercent = length(mincloseindex) / length(stepDistanceTotal);
+
+            % Max Calculations
+            % find maximum path among cells that are close to cancer 
+            maxPath_cancer = max( stepDistanceTotal(cellind) ); 
+            maxPath_cancer_seed = find( stepDistanceTotal == maxPath_cancer ); 
+
+            % find cells that are close enough to maximum path 
+            maxcloseindex = find( abs( stepDistanceTotal-maxPath ) < 100 ); 
+
+            % percentage of cells that are near maximum path 
+            maxclosepercent = length(maxcloseindex) / length(stepDistanceTotal);
+
+            figure;
+            plotenvironment(1);
+            
+            %Plot cancer Min/Max Paths:
+            plot3(p(minPath_cancer_seed).coord(1,:),p(minPath_cancer_seed).coord(2,:),p(minPath_cancer_seed).coord(3,:),'Color','m','linewidth',3);
+            plot3(p(minPath_cancer_seed).coord(1, end),p(minPath_cancer_seed).coord(2, end),p(minPath_cancer_seed).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w');
+
+            plot3(p(maxPath_cancer_seed).coord(1,:),p(maxPath_cancer_seed).coord(2,:),p(maxPath_cancer_seed).coord(3,:),'y','linewidth',3);
+            plot3(p(maxPath_cancer_seed).coord(1, end),p(maxPath_cancer_seed).coord(2, end),p(maxPath_cancer_seed).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w');
+            
+            %Must specify curr_site_num for correct naming before calling savethis
+            curr_site_num=i;
+            savethis('minmaxpath','jpg');
+        end
+    end
 end 
+
+figure; 
+plotenvironment(1);
 
 %Plot overall Min/Max Paths:
 plot3(p(minPath_seed).coord(1,:),p(minPath_seed).coord(2,:),p(minPath_seed).coord(3,:),'Color','m','linewidth',3);
@@ -364,7 +378,7 @@ plot3(p(minPath_seed).coord(1, end),p(minPath_seed).coord(2, end),p(minPath_seed
 plot3(p(maxPath_seed).coord(1,:),p(maxPath_seed).coord(2,:),p(maxPath_seed).coord(3,:),'Color','y','linewidth',3);
 plot3(p(maxPath_seed).coord(1, end),p(maxPath_seed).coord(2, end),p(maxPath_seed).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w');
 
-savethis('minmaxpath','fig');
+savethis('minmaxpathOverall','jpg');
 
 
 
@@ -374,11 +388,11 @@ disp( 'done' );
 
 %% Functions
 function [concentration, cgradX, cgradY, cgradZ, cancer_sd] = set_cancer(coh_map) 
-    global cancer_center cancer_size cancer_number curr_site_num
+    global cancer_center cancer_size num_cancers curr_site_num
     [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
     
     % If multiple cancer sites exist, we assume they are all the same size
-    cancer_number = size(cancer_center,1);
+    num_cancers = size(cancer_center,1);
     cancer_sd = cancer_size+15;
     curr_site_num = 0;
     
@@ -387,10 +401,10 @@ function [concentration, cgradX, cgradY, cgradZ, cancer_sd] = set_cancer(coh_map
     
     % If multiple cancer sites exist, take average of concentrations
     concentration=0;
-    for i=1:cancer_number
+    for i=1:num_cancers
         concentration = concentration + 1./(1+(sqrt(((X - cancer_center(i,1))/concen_sd(1)).^2+((Y - cancer_center(i,2))/concen_sd(1)).^2+((Z - cancer_center(i,3))/concen_sd(1)).^2)).^concen_param);    
     end
-    concentration = concentration/cancer_number;
+    concentration = concentration/num_cancers;
     
     % valcap = concentration at border of cancer
     valcap = 1./(1+(sqrt(((cancer_size(1))/concen_sd(1)).^2+((0)/concen_sd(1)).^2+((0)/concen_sd(1)).^2)).^concen_param);      
@@ -474,15 +488,15 @@ function [EV, FA] = load_3D()
 end 
 
 function filename = savethis(casename,type)
-    global modelType d_w d_g chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer cancer_number curr_site_num;    
+    global modelType d_w d_g chemo_sensitivity alpha4chmtx beta4dist cancer_center FolderName1 FolderName2 has_cancer num_cancers curr_site_num;    
     
     if has_cancer
-        if cancer_number > 1
-            cancer_loc = strcat('[',num2str(cancer_number),']');
+        if num_cancers > 1
+            cancer_loc = strcat('[',num2str(num_cancers),']');
             %If curr_site_num is not specified before calling savethis,
             %include ALL cancer locations in title/naming
             if ~curr_site_num
-                for i=1:cancer_number
+                for i=1:num_cancers
                     cancer_loc = strcat('[',num2str(cancer_center(i,1)),',',...
                                             num2str(cancer_center(i,2)),',',...
                                             num2str(cancer_center(i,3)),']',cancer_loc);
@@ -517,7 +531,7 @@ function filename = savethis(casename,type)
 end
 
 function plotenvironment(coherency_value)
-    global coh_map ubound lbound seed_sd inj_center cancer_size cancer_center has_cancer cancer_number;
+    global coh_map ubound lbound seed_sd inj_center cancer_size cancer_center has_cancer num_cancers;
     [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
     
     hold on; surf( ubound', 'linestyle', 'none' , 'FaceColor', [0 0.4470 0.7410] , 'facealpha', 0.3 );      %Plot upper bound of mouse brain
@@ -531,7 +545,7 @@ function plotenvironment(coherency_value)
     set(h,'FaceColor',[1 0 1],'FaceAlpha',0.4,'FaceLighting','gouraud','EdgeColor','none');
 
     if has_cancer
-        for i=1:cancer_number
+        for i=1:num_cancers
             [x,y,z] = sphere;
             x = x*cancer_size(1) + cancer_center(i,1);
             y = y*cancer_size(2) + cancer_center(i,2);
@@ -551,18 +565,16 @@ function plotonoffWM(p)
     global coh_limit coh_map eigen_map;
     [Y,X,Z] = meshgrid(1:size(coh_map,2),1:size(coh_map,1),1:size(coh_map,3));
     
-%     for i=1: size(p,2)
-%         plot3(p(i).coord(1, end),p(i).coord(2, end),p(i).coord(3, end),'ok','Markersize', 7,'markerfacecolor','w'); %Plot final coords of each seed
-%     end
-    
     isOnWM = @(x) (coh_map(x) > coh_limit);
     for i=1: size(p,2)
         p_temp = p(i).coord;
         ind = sub2ind( size(coh_map),round(p_temp(1,:)),round(p_temp(2,:)),round(p_temp(3,:)) );
-
-        p_on = p_temp .* isOnWM(ind);                                                                       %Set all p from p_temp that ARE NOT on WM to 0
+        
+        %Set all p from p_temp that ARE NOT on WM to 0
+        p_on = p_temp .* isOnWM(ind);
         p_on(p_on == 0) = NaN;
-        p_off = p_temp .* ~isOnWM(ind);                                                                     %Set all p from p_temp that ARE on WM to 0
+        %Set all p from p_temp that ARE on WM to 0
+        p_off = p_temp .* ~isOnWM(ind);
         p_off(p_off == 0) = NaN;
         
         %Connect ends of p_on and p_off to plot seemless lines
@@ -597,12 +609,12 @@ function plotonoffWM(p)
         %Plot eigen vects on WM
         ind_on = sub2ind( size(coh_map),round(p_on(1,:)),round(p_on(2,:)),round(p_on(3,:)) );
         ind_on = ind_on(~isnan(ind_on));
-        hold on; quiver3( X(ind_on),Y(ind_on),Z(ind_on),emap_reshaped(ind_on,1)',emap_reshaped(ind_on,2)',emap_reshaped(ind_on,3)','Color',[0.6350 0.0780 0.1840]);
+        hold on; quiver3( X(ind_on),Y(ind_on),Z(ind_on),emap_reshaped(ind_on,1)',emap_reshaped(ind_on,2)',emap_reshaped(ind_on,3)','Color',[0.6350 0.0780 0.1840],'AutoScaleFactor',0.1);
         %Plot eigen vects off WM
         ind_off = sub2ind( size(coh_map),round(p_off(1,:)),round(p_off(2,:)),round(p_off(3,:)) );
         ind_off = ind_off(~isnan(ind_off));
-        hold on; quiver3( X(ind_off),Y(ind_off),Z(ind_off),emap_reshaped(ind_off,1)',emap_reshaped(ind_off,2)',emap_reshaped(ind_off,3)','Color',[0 0.4470 0.7410]);
+%         hold on; quiver3( X(ind_off),Y(ind_off),Z(ind_off),emap_reshaped(ind_off,1)',emap_reshaped(ind_off,2)',emap_reshaped(ind_off,3)','Color',[0 0.4470 0.7410],'AutoScaleFactor',0.1);
             
-        plot3( p_temp(1,:), p_temp(2,:), p_temp(3,:), 'k.' );                                               %Plot trajectory dots 
+%         plot3( p_temp(1,:), p_temp(2,:), p_temp(3,:), 'k.' );                                               %Plot trajectory dots 
     end
 end
